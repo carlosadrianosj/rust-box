@@ -5,6 +5,7 @@ use aes_gcm::{
 
 use super::{CryptoError, Result};
 
+/// Encrypt with AES-128-GCM, returning ciphertext with appended 16-byte auth tag.
 pub fn aes128_gcm_encrypt(
     key: &[u8],
     nonce: &[u8],
@@ -38,6 +39,7 @@ pub fn aes128_gcm_encrypt(
         .map_err(|e| CryptoError::AesGcmEncrypt(e.to_string()))
 }
 
+/// Decrypt AES-128-GCM ciphertext, verifying the auth tag and AAD.
 pub fn aes128_gcm_decrypt(
     key: &[u8],
     nonce: &[u8],
@@ -71,6 +73,7 @@ pub fn aes128_gcm_decrypt(
         .map_err(|e| CryptoError::AesGcmDecrypt(e.to_string()))
 }
 
+/// XOR a sequence number into a 12-byte base nonce (CRISP record layer counter).
 pub fn compute_nonce(base_nonce: &[u8], seq: u64) -> Vec<u8> {
     assert_eq!(base_nonce.len(), 12, "base nonce must be 12 bytes");
 
@@ -84,6 +87,7 @@ pub fn compute_nonce(base_nonce: &[u8], seq: u64) -> Vec<u8> {
     nonce
 }
 
+/// Build CRISP Additional Authenticated Data: 8-byte sequence || 5-byte record header.
 pub fn build_aad(seq: u64, record_header: &[u8; 5]) -> Vec<u8> {
     let mut aad = Vec::with_capacity(13);
     aad.extend_from_slice(&seq.to_be_bytes());

@@ -6,6 +6,7 @@ mod transport;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
+/// CLI entry point: dispatches subcommands for vault management and file operations.
 #[derive(Parser)]
 #[command(name = "rustbox", about = "Zero-knowledge encrypted file sync")]
 struct Cli {
@@ -13,6 +14,7 @@ struct Cli {
     command: Commands,
 }
 
+/// Available CLI subcommands (init, login, upload, download, sync, status, files, delete).
 #[derive(Subcommand)]
 enum Commands {
     /// Initialize a new RustBox vault in the current directory

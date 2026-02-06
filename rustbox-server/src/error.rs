@@ -47,4 +47,5 @@ impl From<sqlx::Error> for ServerError {
     }
 }
 
+/// Convenience alias for server handler results.
 pub type Result<T> = std::result::Result<T, ServerError>;

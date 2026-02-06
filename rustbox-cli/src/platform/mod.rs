@@ -1,3 +1,5 @@
+//! Native platform: OS CSPRNG (`getrandom`) and system clock.
+
 pub mod native_random;
 pub mod native_clock;
 

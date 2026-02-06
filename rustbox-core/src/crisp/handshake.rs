@@ -5,6 +5,7 @@ use super::record::{Record, RecordType};
 use crate::traits::random::SecureRandom;
 use crate::traits::clock::Clock;
 
+/// Client's initial handshake message: random, timestamp, ECDH public keys, and optional PSK.
 #[derive(Debug, Clone)]
 pub struct ClientHello {
     pub random: Vec<u8>,
@@ -16,6 +17,7 @@ pub struct ClientHello {
 }
 
 impl ClientHello {
+    /// Build a ClientHello with fresh random bytes and the current timestamp.
     pub fn new(
         ecdh_pub_key1: Vec<u8>,
         ecdh_pub_key2: Vec<u8>,
@@ -38,6 +40,7 @@ impl ClientHello {
         })
     }
 
+    /// Serialize to the CRISP wire format for transmission.
     pub fn serialize(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(256);
 
@@ -86,11 +89,13 @@ impl ClientHello {
         buf
     }
 
+    /// Wrap in a CRISP record with ClientHandshake type.
     pub fn to_record(&self) -> Record {
         let payload = self.serialize();
         Record::new(RecordType::ClientHandshake, payload)
     }
 
+    /// SHA-256 hash of the serialized payload (used as transcript input).
     pub fn hash(&self) -> Vec<u8> {
         let data = self.serialize();
         let mut hasher = Sha256::new();
@@ -99,6 +104,7 @@ impl ClientHello {
     }
 }
 
+/// Server's handshake response: random, cipher suite, and ECDH public key.
 #[derive(Debug, Clone)]
 pub struct ServerHello {
     pub random: Vec<u8>,
@@ -109,6 +115,7 @@ pub struct ServerHello {
 }
 
 impl ServerHello {
+    /// Parse a ServerHello from raw bytes received after the record header.
     pub fn parse(data: &[u8]) -> Result<Self> {
         if data.len() < 38 {
             return Err(CrispError::Handshake("ServerHello too short".into()));
@@ -166,11 +173,13 @@ impl ServerHello {
     }
 }
 
+/// Encrypted server extensions (opaque payload decrypted by the client).
 #[derive(Debug, Clone)]
 pub struct EncryptedExtensions {
     pub raw: Vec<u8>,
 }
 
+/// ECDSA signature proving the server holds the private key for its certificate.
 #[derive(Debug, Clone)]
 pub struct CertificateVerify {
     pub signature: Vec<u8>,
@@ -186,6 +195,7 @@ impl CertificateVerify {
     }
 }
 
+/// PSK ticket issued after a successful handshake for fast session resumption.
 #[derive(Debug, Clone)]
 pub struct NewSessionTicket {
     pub lifetime: u32,
@@ -253,6 +263,7 @@ impl NewSessionTicket {
     }
 }
 
+/// Handshake completion message: HMAC proof that both sides derived identical keys.
 #[derive(Debug, Clone)]
 pub struct Finished {
     pub verify_data: Vec<u8>,
@@ -270,6 +281,7 @@ impl Finished {
     }
 }
 
+/// Encode PSK data as a CRISP early-data extension for short-link mode.
 pub fn build_early_data_extension(psk_data: &[u8]) -> Vec<u8> {
     let mut ext = Vec::new();
     ext.extend_from_slice(&[0x00, 0x00, 0x00]);
@@ -279,6 +291,7 @@ pub fn build_early_data_extension(psk_data: &[u8]) -> Vec<u8> {
     ext
 }
 
+/// SHA-256 hash of concatenated handshake messages (transcript binding).
 pub fn compute_transcript_hash(messages: &[&[u8]]) -> Vec<u8> {
     let mut hasher = Sha256::new();
     for msg in messages {

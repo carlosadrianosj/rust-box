@@ -1,69 +1,30 @@
 /* ═══════════════════════════════════════════════════════════════════
-   RustBox - Backend Adapter
-   Environment detection + unified API for Tauri and WASM backends
+   RustBox - WASM Backend Adapter
+   Unified API for the WebAssembly backend
    ═══════════════════════════════════════════════════════════════════ */
 
 const backend = (() => {
     let _wasm = null;
-    let _mode = null; // 'tauri' | 'wasm'
-
-    // ── Progress event listeners (Tauri) ────────────────────────────
-    const _progressListeners = new Map();
-    let _tauriUnlisten = null;
+    let _mode = 'wasm';
 
     // ── Environment Detection ───────────────────────────────────────
 
     /**
      * Detect the runtime environment.
-     * @returns {'tauri'|'wasm'}
+     * @returns {'wasm'}
      */
     function detect() {
-        if (_mode) return _mode;
-
-        if (window.__TAURI__ && window.__TAURI__.core) {
-            _mode = 'tauri';
-        } else {
-            _mode = 'wasm';
-        }
-
-        _log(`Environment detected: ${_mode}`);
         return _mode;
     }
 
     /**
-     * Initialize the WASM module (only needed for wasm mode).
+     * Initialize the WASM module.
      * @param {object} wasmModule - The initialized wasm-bindgen module
      */
     async function init(wasmModule) {
         if (wasmModule) {
             _wasm = wasmModule;
-            _mode = 'wasm';
             _log('WASM module initialized');
-        }
-    }
-
-    // ── Tauri Helpers ───────────────────────────────────────────────
-
-    async function _tauriInvoke(cmd, args = {}) {
-        return window.__TAURI__.core.invoke(cmd, args);
-    }
-
-    async function _tauriListen(event, handler) {
-        return window.__TAURI__.event.listen(event, handler);
-    }
-
-    async function _setupTauriProgressListener() {
-        if (_tauriUnlisten) return;
-        try {
-            _tauriUnlisten = await _tauriListen('transfer-progress', (event) => {
-                const { id, progress, total, message } = event.payload;
-                const cb = _progressListeners.get(id);
-                if (cb) {
-                    cb({ progress, total, message });
-                }
-            });
-        } catch (e) {
-            _log(`Failed to setup Tauri progress listener: ${e}`);
         }
     }
 
@@ -121,30 +82,25 @@ const backend = (() => {
      */
     async function initVault(username, password, saltHex = '') {
         try {
-            if (_mode === 'tauri') {
-                const result = await _tauriInvoke('init_vault', { username, password, saltHex });
-                return { ok: true, ...result };
-            } else {
-                if (!_wasm) {
-                    return { ok: false, error: 'WASM module not loaded' };
-                }
-                try {
+            if (!_wasm) {
+                return { ok: false, error: 'WASM module not loaded' };
+            }
+            try {
+                const result = await _wasm.init_vault(username, password, saltHex);
+                return { ok: true, ...(result || {}) };
+            } catch (e) {
+                const msg = String(e);
+                if (msg.includes('wrong password') || msg.includes('decryption failed')) {
+                    _log('Different credentials detected, resetting local vault...');
+                    await new Promise((resolve, reject) => {
+                        const req = indexedDB.deleteDatabase('rustbox');
+                        req.onsuccess = () => resolve();
+                        req.onerror = () => reject(req.error);
+                    });
                     const result = await _wasm.init_vault(username, password, saltHex);
                     return { ok: true, ...(result || {}) };
-                } catch (e) {
-                    const msg = String(e);
-                    if (msg.includes('wrong password') || msg.includes('decryption failed')) {
-                        _log('Different credentials detected, resetting local vault...');
-                        await new Promise((resolve, reject) => {
-                            const req = indexedDB.deleteDatabase('rustbox');
-                            req.onsuccess = () => resolve();
-                            req.onerror = () => reject(req.error);
-                        });
-                        const result = await _wasm.init_vault(username, password, saltHex);
-                        return { ok: true, ...(result || {}) };
-                    }
-                    throw e;
                 }
+                throw e;
             }
         } catch (e) {
             _logError(`initVault failed: ${e}`);
@@ -161,17 +117,11 @@ const backend = (() => {
      */
     async function login(server, username, password) {
         try {
-            if (_mode === 'tauri') {
-                const result = await _tauriInvoke('login', { server, username, password });
-                return { ok: true, ...result };
-            } else {
-                if (!_wasm) {
-                    return { ok: false, error: 'WASM module not loaded' };
-                }
-                // WASM login(username, password, server_url)
-                const result = await _wasm.login(username, password, server);
-                return { ok: true, ...(result || {}) };
+            if (!_wasm) {
+                return { ok: false, error: 'WASM module not loaded' };
             }
+            const result = await _wasm.login(username, password, server);
+            return { ok: true, ...(result || {}) };
         } catch (e) {
             _logError(`Login failed: ${e}`);
             return { ok: false, error: String(e) };
@@ -188,39 +138,19 @@ const backend = (() => {
      */
     async function uploadFile(bytes, filename, server, onProgress) {
         try {
-            if (_mode === 'tauri') {
-                await _setupTauriProgressListener();
-                const transferId = uid();
-
-                if (onProgress) {
-                    _progressListeners.set(transferId, onProgress);
-                }
-
-                const result = await _tauriInvoke('upload_file', {
-                    bytes: Array.from(bytes),
-                    filename,
-                    server,
-                    transferId,
-                });
-
-                _progressListeners.delete(transferId);
-                return { ok: true, ...result };
+            let result;
+            if (onProgress) {
+                const wrappedProgress = (step, current, total) => {
+                    const message = _progressMessage(step, current, total, filename);
+                    onProgress({ progress: current, total, step, message });
+                };
+                result = await _wasm.upload_file_with_progress(
+                    bytes, filename, server, wrappedProgress
+                );
             } else {
-                let result;
-                if (onProgress) {
-                    // WASM calls on_progress(step, current, total) — wrap into object
-                    const wrappedProgress = (step, current, total) => {
-                        const message = _progressMessage(step, current, total, filename);
-                        onProgress({ progress: current, total, step, message });
-                    };
-                    result = await _wasm.upload_file_with_progress(
-                        bytes, filename, server, wrappedProgress
-                    );
-                } else {
-                    result = await _wasm.upload_file(bytes, filename, server);
-                }
-                return { ok: true, ...(result || {}) };
+                result = await _wasm.upload_file(bytes, filename, server);
             }
+            return { ok: true, ...(result || {}) };
         } catch (e) {
             _logError(`Upload failed: ${e}`);
             return { ok: false, error: String(e) };
@@ -240,52 +170,24 @@ const backend = (() => {
             return { ok: false, error: 'No manifest ID' };
         }
         try {
-            if (_mode === 'tauri') {
-                await _setupTauriProgressListener();
-                const transferId = uid();
-
-                if (onProgress) {
-                    _progressListeners.set(transferId, onProgress);
-                }
-
-                const result = await _tauriInvoke('download_file', {
-                    manifestId,
-                    server,
-                    transferId,
-                });
-
-                _progressListeners.delete(transferId);
-
-                // Convert array back to Uint8Array
-                const bytes = result.bytes ? new Uint8Array(result.bytes) : null;
-                return {
-                    ok: true,
-                    bytes,
-                    filename: result.filename,
-                    mimeType: result.mime_type || null,
+            let result;
+            if (onProgress) {
+                const wrappedProgress = (step, current, total) => {
+                    const message = _progressMessage(step, current, total);
+                    onProgress({ progress: current, total, step, message });
                 };
+                result = await _wasm.download_file_with_progress(
+                    manifestId, server, wrappedProgress
+                );
             } else {
-                let result;
-                if (onProgress) {
-                    // WASM calls on_progress(step, current, total) — wrap into object
-                    const wrappedProgress = (step, current, total) => {
-                        const message = _progressMessage(step, current, total);
-                        onProgress({ progress: current, total, step, message });
-                    };
-                    result = await _wasm.download_file_with_progress(
-                        manifestId, server, wrappedProgress
-                    );
-                } else {
-                    result = await _wasm.download_file(manifestId, server);
-                }
-                // WASM returns { bytes: Uint8Array, filename: String, mime_type: String|null }
-                return {
-                    ok: true,
-                    bytes: result.bytes,
-                    filename: result.filename,
-                    mimeType: result.mime_type || null,
-                };
+                result = await _wasm.download_file(manifestId, server);
             }
+            return {
+                ok: true,
+                bytes: result.bytes,
+                filename: result.filename,
+                mimeType: result.mime_type || null,
+            };
         } catch (e) {
             _logError(`Download failed: ${e}`);
             return { ok: false, error: String(e) };
@@ -300,25 +202,8 @@ const backend = (() => {
      */
     async function syncFiles(server, onProgress) {
         try {
-            if (_mode === 'tauri') {
-                await _setupTauriProgressListener();
-                const transferId = uid();
-
-                if (onProgress) {
-                    _progressListeners.set(transferId, onProgress);
-                }
-
-                const result = await _tauriInvoke('sync_files', {
-                    server,
-                    transferId,
-                });
-
-                _progressListeners.delete(transferId);
-                return { ok: true, ...result };
-            } else {
-                const result = await _wasm.sync_files(server);
-                return { ok: true, ...(result || {}) };
-            }
+            const result = await _wasm.sync_files(server);
+            return { ok: true, ...(result || {}) };
         } catch (e) {
             _logError(`Sync failed: ${e}`);
             return { ok: false, error: String(e) };
@@ -331,13 +216,8 @@ const backend = (() => {
      */
     async function getStatus() {
         try {
-            if (_mode === 'tauri') {
-                const result = await _tauriInvoke('get_status');
-                return { ok: true, ...result };
-            } else {
-                const result = await _wasm.get_status();
-                return { ok: true, ...(result || {}) };
-            }
+            const result = await _wasm.get_status();
+            return { ok: true, ...(result || {}) };
         } catch (e) {
             return { ok: false, error: String(e) };
         }
@@ -350,13 +230,8 @@ const backend = (() => {
      */
     async function listFiles() {
         try {
-            if (_mode === 'tauri') {
-                const files = await _tauriInvoke('list_files');
-                return { ok: true, files: files || [] };
-            } else {
-                const files = await _wasm.list_files();
-                return { ok: true, files: files || [] };
-            }
+            const files = await _wasm.list_files();
+            return { ok: true, files: files || [] };
         } catch (e) {
             _logError(`listFiles failed: ${e}`);
             return { ok: false, files: [], error: String(e) };
@@ -369,13 +244,8 @@ const backend = (() => {
      */
     async function lockVault() {
         try {
-            if (_mode === 'tauri') {
-                await _tauriInvoke('lock_vault');
-                return { ok: true };
-            } else {
-                await _wasm.lock_vault();
-                return { ok: true };
-            }
+            await _wasm.lock_vault();
+            return { ok: true };
         } catch (e) {
             _logError(`lockVault failed: ${e}`);
             return { ok: false, error: String(e) };
@@ -410,8 +280,7 @@ const backend = (() => {
      */
     function getServer() {
         if (getSavedServer()) return getSavedServer();
-        // WASM uses HTTP transport, Tauri uses QUIC
-        return _mode === 'wasm' ? 'http://localhost:8443' : '127.0.0.1:4433';
+        return 'http://localhost:8443';
     }
 
     /**
@@ -421,14 +290,9 @@ const backend = (() => {
      */
     async function listServerManifests(server) {
         try {
-            if (_mode === 'tauri') {
-                const result = await _tauriInvoke('list_server_manifests', { server });
-                return { ok: true, files: result.files || [] };
-            } else {
-                if (!_wasm) return { ok: false, error: 'WASM not loaded' };
-                const files = await _wasm.list_server_manifests(server);
-                return { ok: true, files: files || [] };
-            }
+            if (!_wasm) return { ok: false, error: 'WASM not loaded' };
+            const files = await _wasm.list_server_manifests(server);
+            return { ok: true, files: files || [] };
         } catch (e) {
             _logError(`listServerManifests failed: ${e}`);
             return { ok: false, files: [], error: String(e) };
@@ -443,14 +307,9 @@ const backend = (() => {
      */
     async function deleteFile(manifestId, server) {
         try {
-            if (_mode === 'tauri') {
-                await _tauriInvoke('delete_file', { manifestId, server });
-                return { ok: true };
-            } else {
-                if (!_wasm) return { ok: false, error: 'WASM not loaded' };
-                await _wasm.delete_file(manifestId, server);
-                return { ok: true };
-            }
+            if (!_wasm) return { ok: false, error: 'WASM not loaded' };
+            await _wasm.delete_file(manifestId, server);
+            return { ok: true };
         } catch (e) {
             _logError(`deleteFile failed: ${e}`);
             return { ok: false, error: String(e) };
@@ -464,14 +323,9 @@ const backend = (() => {
      */
     async function getDbOverview(server) {
         try {
-            if (_mode === 'tauri') {
-                const result = await _tauriInvoke('get_db_overview', { server });
-                return { ok: true, data: result };
-            } else {
-                if (!_wasm) return { ok: false, error: 'WASM not loaded' };
-                const result = await _wasm.get_db_overview(server);
-                return { ok: true, data: result };
-            }
+            if (!_wasm) return { ok: false, error: 'WASM not loaded' };
+            const result = await _wasm.get_db_overview(server);
+            return { ok: true, data: result };
         } catch (e) {
             _logError(`getDbOverview failed: ${e}`);
             return { ok: false, error: String(e) };

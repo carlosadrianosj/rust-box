@@ -244,7 +244,7 @@ echo -e "${GREEN}===========================================================${NC
 echo -e "${GREEN}  CLI Test Complete!${NC}"
 echo -e "${GREEN}===========================================================${NC}"
 echo ""
-echo -e "  ${YELLOW}Step 3 (files)${NC}   shows ALL server files (cross-client: Web + CLI + Tauri)"
+echo -e "  ${YELLOW}Step 3 (files)${NC}   shows ALL server files (cross-client: Web + CLI)"
 echo -e "  ${YELLOW}Step 4 (status)${NC}  shows LOCAL vault state + stored server address"
 echo ""
 echo -e "  Now check Web UI: ${CYAN}http://localhost:8080/serve.html${NC}"

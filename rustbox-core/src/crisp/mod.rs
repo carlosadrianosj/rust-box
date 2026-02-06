@@ -1,3 +1,5 @@
+//! CRISP protocol: TLS 1.3-inspired secure channel (P-256 ECDH, AES-128-GCM, PSK resumption).
+
 pub mod record;
 pub mod handshake;
 pub mod keys;
@@ -5,6 +7,7 @@ pub mod cipher;
 
 use thiserror::Error;
 
+/// Errors from CRISP handshake, record parsing, or session management.
 #[derive(Error, Debug)]
 pub enum CrispError {
     #[error("Record parse error: {0}")]
@@ -27,4 +30,5 @@ pub enum CrispError {
     SessionNotEstablished,
 }
 
+/// Convenience alias for CRISP operations.
 pub type Result<T> = std::result::Result<T, CrispError>;

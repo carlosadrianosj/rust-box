@@ -1,5 +1,6 @@
 use crate::constants::CHUNK_SIZE;
 
+/// A plaintext chunk before encryption, carrying its index and data.
 #[derive(Debug, Clone)]
 pub struct RawChunk {
     pub index: u32,

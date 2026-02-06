@@ -1,3 +1,5 @@
+//! CLI command implementations (init, login, upload, download, sync, status, files, delete).
+
 pub mod init;
 pub mod login;
 pub mod upload;

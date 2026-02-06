@@ -2,6 +2,7 @@ use super::{CrispError, Result};
 use crate::crypto::aes_gcm::{self, compute_nonce, build_aad};
 use crate::crisp::record::{Record, RecordType, RecordHeader};
 
+/// Negotiated cipher suite for a CRISP session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum CipherSuite {
@@ -21,6 +22,7 @@ impl TryFrom<u16> for CipherSuite {
     }
 }
 
+/// Symmetric encryption state: tracks keys, nonces, and per-direction sequence counters.
 #[derive(Debug, Clone)]
 pub struct CipherState {
     pub encrypt_key: Vec<u8>,
@@ -33,6 +35,7 @@ pub struct CipherState {
 }
 
 impl CipherState {
+    /// Create a cipher state from directional key pairs, resetting sequence counters to zero.
     pub fn new(
         encrypt_key: Vec<u8>,
         encrypt_nonce: Vec<u8>,
@@ -50,6 +53,7 @@ impl CipherState {
         }
     }
 
+    /// Encrypt plaintext into a CRISP record, incrementing the send sequence counter.
     pub fn encrypt_record(
         &mut self,
         record_type: RecordType,
@@ -80,6 +84,7 @@ impl CipherState {
         })
     }
 
+    /// Decrypt a CRISP record, verifying the auth tag and incrementing the receive sequence.
     pub fn decrypt_record(&mut self, record: &Record) -> Result<Vec<u8>> {
         self.decrypt_seq += 1;
         let seq = self.decrypt_seq;
@@ -97,11 +102,13 @@ impl CipherState {
         .map_err(|e| CrispError::Cipher(e.to_string()))
     }
 
+    /// Reset both sequence counters to zero (used after key rotation).
     pub fn reset_sequences(&mut self) {
         self.encrypt_seq = 0;
         self.decrypt_seq = 0;
     }
 
+    /// Replace all keys and reset sequences (key phase transition).
     pub fn update_keys(
         &mut self,
         encrypt_key: Vec<u8>,
@@ -117,6 +124,7 @@ impl CipherState {
     }
 }
 
+/// CRISP session lifecycle state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionStatus {
     Initial,

@@ -19,6 +19,7 @@ pub struct CrispKeys {
 }
 
 impl CrispKeys {
+    /// Empty key set; populated during handshake or PSK resumption.
     pub fn new() -> Self {
         Self {
             psk_access_key: Vec::new(),
@@ -42,6 +43,7 @@ impl Default for CrispKeys {
     }
 }
 
+/// Serialized PSK ticket received from the server for session resumption.
 #[derive(Debug, Clone)]
 pub struct PskTicket {
     pub psk_type: u8,
@@ -52,6 +54,7 @@ pub struct PskTicket {
     pub encrypted_ticket: Vec<u8>,
 }
 
+/// Derive 56-byte handshake key material from the ECDH shared secret and transcript.
 pub fn derive_handshake_keys(
     ecdh_shared_secret_hash: &[u8],
     transcript_hash: &[u8],
@@ -71,6 +74,7 @@ pub fn derive_handshake_keys(
     })
 }
 
+/// Derive the PSK access key used for short-link encryption.
 pub fn derive_psk_access_key(
     ecdh_shared_secret_hash: &[u8],
     transcript_hash: &[u8],
@@ -83,6 +87,7 @@ pub fn derive_psk_access_key(
     .map_err(|e| CrispError::KeyDerivation(e.to_string()))
 }
 
+/// Derive the PSK refresh key used to rotate session tickets.
 pub fn derive_psk_refresh_key(
     ecdh_shared_secret_hash: &[u8],
     transcript_hash: &[u8],
@@ -95,6 +100,7 @@ pub fn derive_psk_refresh_key(
     .map_err(|e| CrispError::KeyDerivation(e.to_string()))
 }
 
+/// Derive client-side short-link encryption keys from the PSK and ClientHello hash.
 pub fn derive_short_link_encrypt_keys(
     psk_access_key: &[u8],
     client_hello_hash: &[u8],
@@ -107,6 +113,7 @@ pub fn derive_short_link_encrypt_keys(
     .map_err(|e| CrispError::KeyDerivation(e.to_string()))
 }
 
+/// Derive server-side short-link response decryption keys from the PSK and transcript.
 pub fn derive_short_link_decrypt_keys(
     psk_access_key: &[u8],
     transcript_hash: &[u8],
@@ -119,18 +126,21 @@ pub fn derive_short_link_decrypt_keys(
     .map_err(|e| CrispError::KeyDerivation(e.to_string()))
 }
 
+/// Derive the key used to compute the server Finished HMAC.
 pub fn derive_server_finished_key(psk_access_key: &[u8]) -> Result<Vec<u8>> {
     let info = LABEL_SERVER_FINISHED.as_bytes();
     hkdf::hkdf_expand(psk_access_key, info, 32)
         .map_err(|e| CrispError::KeyDerivation(e.to_string()))
 }
 
+/// Derive the key used to compute the client Finished HMAC.
 pub fn derive_client_finished_key(psk_access_key: &[u8]) -> Result<Vec<u8>> {
     let info = LABEL_CLIENT_FINISHED.as_bytes();
     hkdf::hkdf_expand(psk_access_key, info, 32)
         .map_err(|e| CrispError::KeyDerivation(e.to_string()))
 }
 
+/// Derive 56-byte application data keys from the master secret and full transcript.
 pub fn derive_application_data_keys(
     master_secret: &[u8],
     transcript_hash: &[u8],
@@ -150,6 +160,7 @@ pub fn derive_application_data_keys(
     })
 }
 
+/// Derive an expanded secret for further key material generation.
 pub fn derive_expanded_secret(
     master_secret: &[u8],
     transcript_hash: &[u8],
@@ -162,6 +173,7 @@ pub fn derive_expanded_secret(
     .map_err(|e| CrispError::KeyDerivation(e.to_string()))
 }
 
+/// One-shot derivation of all session keys from the ECDH output and transcript hashes.
 pub fn derive_all_session_keys(
     ecdh_shared_secret_hash: &[u8],
     server_hello_hash: &[u8],

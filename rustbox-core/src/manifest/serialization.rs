@@ -1,11 +1,13 @@
 use serde::{Serialize, de::DeserializeOwned};
 use crate::error::RustBoxError;
 
+/// Serialize a manifest to compact binary (bincode).
 pub fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>, RustBoxError> {
     bincode::serialize(value)
         .map_err(|e| RustBoxError::Serialization(e.to_string()))
 }
 
+/// Deserialize a manifest from bincode bytes.
 pub fn deserialize<T: DeserializeOwned>(data: &[u8]) -> Result<T, RustBoxError> {
     bincode::deserialize(data)
         .map_err(|e| RustBoxError::Serialization(e.to_string()))

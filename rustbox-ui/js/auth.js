@@ -26,8 +26,7 @@ const Auth = (() => {
 
         Logs.add(`Connecting to ${trimmedServer} as '${username}'...`, 'info');
 
-        // For WASM: login() handles salt fetch + vault init + register in one call
-        // For Tauri: login() handles salt fetch + vault init + register via QUIC
+        // login() handles salt fetch + vault init + register in one call
         const loginResult = await backend.login(trimmedServer, username, password);
         if (!loginResult.ok) {
             Logs.add(`Login failed: ${loginResult.error}`, 'error');

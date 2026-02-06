@@ -22,12 +22,14 @@ pub struct HkdfKey56 {
     pub decode_nonce: Vec<u8>,
 }
 
+/// HKDF-Extract: compress input key material into a pseudorandom key.
 pub fn hkdf_extract(salt: &[u8], ikm: &[u8]) -> Vec<u8> {
     let salt = if salt.is_empty() { &[0u8; 32] } else { salt };
     let (prk, _) = Hkdf::<Sha256>::extract(Some(salt), ikm);
     prk.to_vec()
 }
 
+/// HKDF-Expand: derive `length` bytes of output key material from a PRK.
 pub fn hkdf_expand(prk: &[u8], info: &[u8], length: usize) -> Result<Vec<u8>> {
     let hkdf = Hkdf::<Sha256>::from_prk(prk)
         .map_err(|e| CryptoError::HkdfDerive(format!("invalid PRK: {e}")))?;
@@ -39,6 +41,7 @@ pub fn hkdf_expand(prk: &[u8], info: &[u8], length: usize) -> Result<Vec<u8>> {
     Ok(okm)
 }
 
+/// One-shot HKDF: extract then expand in a single call.
 pub fn hkdf_extract_and_expand(
     salt: &[u8],
     ikm: &[u8],
@@ -49,6 +52,7 @@ pub fn hkdf_extract_and_expand(
     hkdf_expand(&prk, info, length)
 }
 
+/// Derive 56-byte CRISP handshake key material (2x AES key + 2x nonce).
 pub fn hkdf_expand_handshake_keys(
     hash: &[u8],
     label: &str,
@@ -60,6 +64,7 @@ pub fn hkdf_expand_handshake_keys(
     hkdf_expand(hash, &info, 56)
 }
 
+/// Derive 28-byte CRISP short-link key material (AES key + nonce).
 pub fn hkdf_expand_short_keys(
     prk: &[u8],
     label: &str,
@@ -76,6 +81,7 @@ pub fn hkdf_expand_short_keys(
     })
 }
 
+/// Derive a 32-byte PSK from a PRK with a label and context hash.
 pub fn hkdf_expand_psk(
     prk: &[u8],
     label: &str,
@@ -87,6 +93,7 @@ pub fn hkdf_expand_psk(
     hkdf_expand(prk, &info, 32)
 }
 
+/// Compute HMAC-SHA256 over data with the given key.
 pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
     let mut mac = HmacSha256::new_from_slice(key)
         .expect("HMAC can take key of any size");
@@ -94,6 +101,7 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
     mac.finalize().into_bytes().to_vec()
 }
 
+/// Verify an HMAC-SHA256 tag in constant time.
 pub fn hmac_sha256_verify(key: &[u8], data: &[u8], expected: &[u8]) -> bool {
     let computed = hmac_sha256(key, data);
     constant_time_eq(&computed, expected)

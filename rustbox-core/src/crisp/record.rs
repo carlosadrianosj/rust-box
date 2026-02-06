@@ -1,6 +1,7 @@
 use super::{CrispError, Result};
 use crate::constants::CRISP_VERSION;
 
+/// CRISP record type byte (mirrors TLS 1.3 content types with custom additions).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum RecordType {
@@ -24,6 +25,7 @@ impl TryFrom<u8> for RecordType {
     }
 }
 
+/// 5-byte record header: type (1) + version (2) + payload length (2).
 #[derive(Debug, Clone)]
 pub struct RecordHeader {
     pub record_type: RecordType,
@@ -34,6 +36,7 @@ pub struct RecordHeader {
 impl RecordHeader {
     pub const SIZE: usize = 5;
 
+    /// Build a header with the current CRISP protocol version.
     pub fn new(record_type: RecordType, size: u16) -> Self {
         Self {
             record_type,
@@ -42,6 +45,7 @@ impl RecordHeader {
         }
     }
 
+    /// Encode to the 5-byte wire format.
     pub fn serialize(&self) -> [u8; 5] {
         let mut buf = [0u8; 5];
         buf[0] = self.record_type as u8;
@@ -50,6 +54,7 @@ impl RecordHeader {
         buf
     }
 
+    /// Parse a header from the first 5 bytes, validating the protocol version.
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         if data.len() < Self::SIZE {
             return Err(CrispError::InsufficientData {
@@ -74,6 +79,7 @@ impl RecordHeader {
     }
 }
 
+/// A CRISP record: header + payload (plaintext or ciphertext depending on phase).
 #[derive(Debug, Clone)]
 pub struct Record {
     pub header: RecordHeader,
@@ -81,11 +87,13 @@ pub struct Record {
 }
 
 impl Record {
+    /// Create a record, auto-computing the header size from the payload length.
     pub fn new(record_type: RecordType, payload: Vec<u8>) -> Self {
         let header = RecordHeader::new(record_type, payload.len() as u16);
         Self { header, payload }
     }
 
+    /// Serialize the full record (header + payload) for transmission.
     pub fn serialize(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(RecordHeader::SIZE + self.payload.len());
         buf.extend_from_slice(&self.header.serialize());
@@ -93,6 +101,7 @@ impl Record {
         buf
     }
 
+    /// Parse a byte stream into a sequence of records (one or more).
     pub fn parse_multiple(data: &[u8]) -> Result<Vec<Record>> {
         let mut records = Vec::new();
         let mut offset = 0;
@@ -126,6 +135,7 @@ impl Record {
     }
 }
 
+/// Concatenate multiple records into a single byte buffer for bulk transmission.
 pub fn serialize_records(records: &[Record]) -> Vec<u8> {
     let total_size: usize = records
         .iter()

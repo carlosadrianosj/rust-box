@@ -1,3 +1,5 @@
+//! Cryptographic primitives: AES-128-GCM, XChaCha20-Poly1305, P-256 ECDH/ECDSA, HKDF-SHA256, PBKDF2.
+
 pub mod hkdf;
 pub mod aes_gcm;
 pub mod ecdh;
@@ -8,6 +10,7 @@ pub mod key_hierarchy;
 
 use thiserror::Error;
 
+/// Errors from cryptographic operations (key generation, encryption, verification).
 #[derive(Error, Debug)]
 pub enum CryptoError {
     #[error("ECDH key generation failed: {0}")]
@@ -34,4 +37,5 @@ pub enum CryptoError {
     Pbkdf2Derive(String),
 }
 
+/// Convenience alias for crypto operations.
 pub type Result<T> = std::result::Result<T, CryptoError>;

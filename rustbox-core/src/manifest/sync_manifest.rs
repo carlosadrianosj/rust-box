@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 
+/// Pointer to a file's manifest within the sync index.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FileReference {
     pub file_id: String,
@@ -9,6 +10,7 @@ pub struct FileReference {
     pub modified_at: u64,
 }
 
+/// Per-user index of all synced files with the current Merkle root.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SyncManifest {
     pub user_id: String,
@@ -19,6 +21,7 @@ pub struct SyncManifest {
 }
 
 impl SyncManifest {
+    /// Create an empty sync manifest for a new user.
     pub fn new(user_id: String) -> Self {
         Self {
             user_id,
@@ -29,10 +32,12 @@ impl SyncManifest {
         }
     }
 
+    /// Track a file reference in the sync index.
     pub fn add_file(&mut self, reference: FileReference) {
         self.files.push(reference);
     }
 
+    /// Number of files tracked in this manifest.
     pub fn file_count(&self) -> usize {
         self.files.len()
     }

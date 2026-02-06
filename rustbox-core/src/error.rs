@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+/// Top-level error covering all core subsystems (crypto, storage, transport, sync).
 #[derive(Error, Debug)]
 pub enum RustBoxError {
     #[error("Crypto error: {0}")]
@@ -39,4 +40,5 @@ pub enum RustBoxError {
     Platform(String),
 }
 
+/// Convenience alias used throughout `rustbox-core`.
 pub type Result<T> = std::result::Result<T, RustBoxError>;

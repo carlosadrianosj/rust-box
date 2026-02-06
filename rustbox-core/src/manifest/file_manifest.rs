@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize};
 use crate::constants::XCHACHA20_NONCE_LEN;
 
+/// Metadata for a single encrypted chunk within a file manifest.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChunkEntry {
     pub index: u32,
@@ -10,6 +11,7 @@ pub struct ChunkEntry {
     pub plaintext_size: u32,
 }
 
+/// Encrypted-at-rest descriptor of a file: name, size, and ordered chunk list.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FileManifest {
     pub file_id: String,
@@ -23,6 +25,7 @@ pub struct FileManifest {
 }
 
 impl FileManifest {
+    /// Create an empty manifest shell; chunks are added during the upload pipeline.
     pub fn new(file_id: String, filename: String, original_size: u64) -> Self {
         Self {
             file_id,
@@ -36,10 +39,12 @@ impl FileManifest {
         }
     }
 
+    /// Append an encrypted chunk entry to the manifest.
     pub fn add_chunk(&mut self, entry: ChunkEntry) {
         self.chunks.push(entry);
     }
 
+    /// Extract ordered chunk hashes for Merkle tree construction.
     pub fn chunk_hashes(&self) -> Vec<[u8; 32]> {
         self.chunks.iter().map(|c| c.hash).collect()
     }

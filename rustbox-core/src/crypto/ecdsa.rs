@@ -5,6 +5,7 @@ use elliptic_curve::sec1::FromEncodedPoint;
 
 use super::{CryptoError, Result};
 
+/// Verify a P-256 ECDSA signature (DER-encoded) against a message.
 pub fn ecdsa_p256_verify(
     public_key: &[u8],
     message: &[u8],
@@ -29,6 +30,7 @@ pub fn ecdsa_p256_verify(
         .map_err(|e| CryptoError::EcdsaVerify(format!("verification failed: {e}")))
 }
 
+/// Sign a message with a P-256 ECDSA private key, returning a DER-encoded signature.
 pub fn ecdsa_p256_sign(
     private_key: &[u8],
     message: &[u8],

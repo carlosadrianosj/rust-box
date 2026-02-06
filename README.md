@@ -1,84 +1,56 @@
-<p align="center">
-  <img src="rust_box_v4.png" alt="RustBox" width="280" />
-</p>
+# RustBox: Zero-Knowledge Encrypted File Sync
 
-<h1 align="center">RustBox</h1>
-
-<p align="center">
-  <strong>Zero-Knowledge Encrypted File Sync</strong><br/>
-  <sub>One Rust core. Three clients. The server sees nothing.</sub>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/language-Rust-orange?style=flat-square" alt="Rust" />
-  <img src="https://img.shields.io/badge/crypto-XChaCha20--Poly1305-blue?style=flat-square" alt="Crypto" />
-  <img src="https://img.shields.io/badge/transport-QUIC-green?style=flat-square" alt="QUIC" />
-  <img src="https://img.shields.io/badge/targets-CLI%20%7C%20WASM%20%7C%20Tauri-purple?style=flat-square" alt="Targets" />
-  <img src="https://img.shields.io/badge/tests-88%20passing-brightgreen?style=flat-square" alt="Tests" />
-  <img src="https://img.shields.io/badge/status-Proof%20of%20Concept-yellow?style=flat-square" alt="Status" />
-</p>
-
----
-
-## Overview
+## What Is This?
 
 RustBox is a proof of concept for a cloud storage system where **the server is blind**. It stores encrypted data and has no ability to read, decrypt, or understand the files users upload. The server knows a file exists, it knows a timestamp, it knows how many encrypted chunks make up that file. But it cannot see filenames, file contents, file types, or any meaningful metadata. Everything is encrypted client-side before it ever leaves the user's machine.
 
 This is not "we promise we won't look at your data." This is **"we mathematically cannot, even if compelled by a court order."**
 
-The goal was to prove that zero-knowledge encryption is practical for real file sync -- not just a theoretical exercise -- and that a single Rust codebase can power CLI, Web (WASM), and Desktop (Tauri) clients simultaneously.
-
----
+The goal was to prove that zero-knowledge encryption is practical for real file sync -- not just a theoretical exercise -- and that a single Rust codebase can power CLI and Web (WASM) clients simultaneously.
 
 ## The Core Challenge
 
-The primary engineering challenge was not encryption itself. Established algorithms exist. The real challenge was building **one Rust cryptographic library** (`rustbox-core`) that compiles cleanly to three fundamentally different targets:
+The primary engineering challenge was not encryption itself. Established algorithms exist. The real challenge was building **one Rust cryptographic library** (`rustbox-core`) that compiles cleanly to two fundamentally different targets:
 
 | Target | Runtime | Async | Random | Storage | Transport |
 |--------|---------|-------|--------|---------|-----------|
 | **CLI** (native) | Tokio | `Send + Sync` | OS CSPRNG | SQLite + filesystem | QUIC (quinn) |
 | **WASM** (browser) | Single-threaded JS event loop | `!Send` | `crypto.getRandomValues()` | IndexedDB | HTTP `fetch()` |
-| **Tauri** (desktop) | Tokio + native webview | `Send + Sync` | OS CSPRNG | SQLite + filesystem | QUIC (quinn) |
 
 Each target has different async runtimes, different random number generators, different storage backends, and different network transports. The solution: **trait-based abstraction**.
 
 `rustbox-core` defines traits (`Transport`, `ContentAddressableStorage`, `PersistentStorage`, `SecureRandom`, `Clock`) using `#[async_trait(?Send)]` -- which removes the `Send + Sync` requirement and allows the same trait to work in both native Tokio and browser WASM contexts. Each client crate provides its own implementations:
 
-- **CLI:** `QuicTransport`, `SqliteMeta`, filesystem blobs
-- **WASM:** `FetchTransport`, `IndexedDbStorage`, browser `crypto`
-- **Tauri:** `QuicTransport` (same as CLI), Tauri-specific file dialogs
+- CLI: `QuicTransport`, `SqliteMeta`, filesystem blobs
+- WASM: `FetchTransport`, `IndexedDbStorage`, browser `crypto`
 
-The cryptographic core (PBKDF2, HKDF, XChaCha20-Poly1305, Merkle trees, chunking pipeline) is identical across all three. Same algorithm, same key derivation, same byte-level output. A file uploaded from the CLI can be downloaded and decrypted from the browser or the desktop app with zero compatibility issues.
+The cryptographic core (PBKDF2, HKDF, XChaCha20-Poly1305, Merkle trees, chunking pipeline) is identical across both. Same algorithm, same key derivation, same byte-level output. A file uploaded from the CLI can be downloaded and decrypted from the browser with zero compatibility issues.
 
-This proves: **a single Rust crate can target CLI, WebAssembly, and native desktop simultaneously** while maintaining cryptographic correctness across all platforms.
-
----
+This proves: **a single Rust crate can target CLI and WebAssembly simultaneously** while maintaining cryptographic correctness across all platforms.
 
 ## Architecture
 
 ```
                     rustbox-core (~3,000 LOC, 88 tests)
-                   /          |            \
-          rustbox-cli     rustbox-wasm     rustbox-tauri
-          (~2,100 LOC)    (~2,600 LOC)     (~2,400 LOC)
-              |               |                |
-              v               v                v
-         Terminal        Browser (WASM)    Desktop (Tauri)
-              \               |                /
-               \              |               /
-           QUIC :4433    HTTP :8443       QUIC :4433
-                \             |              /
-                 v            v             v
+                   /          \
+          rustbox-cli     rustbox-wasm
+          (~2,100 LOC)    (~2,600 LOC)
+              |               |
+              v               v
+         Terminal        Browser (WASM)
+              \               |
+               \              |
+           QUIC :4433    HTTP :8443
+                \             |
+                 v            v
                    rustbox-server (~2,000 LOC)
                           |
                    PostgreSQL 16
 ```
 
-> **~12,000 lines of Rust | ~2,200 lines of JS/HTML/CSS | 88 unit tests | 5 crates**
+**Total: ~9,700 lines of Rust, ~2,200 lines of JavaScript/HTML/CSS, 88 unit tests, 4 crates.**
 
-The `rustbox-ui/` directory contains a shared HTML/CSS/JS frontend used by both the WASM build (served as a static page) and the Tauri build (embedded in the native window). A single adapter layer (`adapter.js`) abstracts the backend: WASM calls go through `wasm-bindgen`, Tauri calls go through `invoke()`. The rest of the UI code is identical.
-
----
+The `rustbox-ui/` directory contains a shared HTML/CSS/JS frontend used by the WASM build (served as a static page). An adapter layer (`adapter.js`) wraps the WASM backend: calls go through `wasm-bindgen`.
 
 ## Cryptographic Design
 
@@ -160,11 +132,9 @@ Client B (any other client, same user):
 
 No password or key ever leaves the client. The server stores only the salt (public, not secret) and a hash of a derived auth key (one-way, cannot be reversed).
 
----
-
 ## The CRISP Protocol
 
-`rustbox-core` includes an implementation of **CRISP** (Crypto Record Interchange Security Protocol) -- a custom protocol inspired by TLS 1.3, designed for lightweight secure channels.
+`rustbox-core` includes an implementation of the **CRISP** (Crypto Record Interchange Security Protocol) -- a custom protocol inspired by TLS 1.3, designed for lightweight secure channels.
 
 ### What CRISP Provides
 
@@ -198,17 +168,15 @@ After the initial handshake, a **PSK ticket** is issued. Subsequent connections 
 
 ### How CRISP Relates to RustBox Transport
 
-RustBox's QUIC transport (CLI and Tauri) relies on **QUIC's built-in TLS 1.3** for transport encryption. The CRISP protocol in `rustbox-core` provides an **application-layer security option** -- it can establish encrypted channels independently of the transport layer, useful when QUIC/TLS is not available or when an additional encryption layer is desired.
+RustBox's QUIC transport (CLI) relies on **QUIC's built-in TLS 1.3** for transport encryption. The CRISP protocol in `rustbox-core` provides an **application-layer security option** -- it can establish encrypted channels independently of the transport layer, useful when QUIC/TLS is not available or when an additional encryption layer is desired.
 
 The CRISP code shares the same HKDF, ECDH, and key derivation infrastructure used by the file encryption pipeline, demonstrating the versatility of the core library.
 
----
-
 ## Transport Layer
 
-### QUIC Binary Protocol (CLI and Tauri)
+### QUIC Binary Protocol (CLI)
 
-CLI and Tauri clients communicate with the server over **QUIC** (RFC 9000) using the `quinn` crate. QUIC provides:
+The CLI client communicates with the server over **QUIC** (RFC 9000) using the `quinn` crate. QUIC provides:
 
 1. **Built-in TLS 1.3 encryption** -- every stream is encrypted
 2. **Multiplexed streams** -- multiple uploads/downloads in parallel, no head-of-line blocking
@@ -224,37 +192,37 @@ Response: [status: 1 byte] [payload_len: 4 bytes BE] [payload]
 
 | Command | Code | Description |
 |---------|------|-------------|
-| `UPLOAD_CHUNK` | `0x01` | Store encrypted blob by SHA-256 hash |
-| `DOWNLOAD_CHUNK` | `0x02` | Retrieve blob by hash |
-| `UPLOAD_MANIFEST` | `0x03` | Store encrypted manifest envelope |
-| `DOWNLOAD_MANIFEST` | `0x04` | Retrieve manifest by UUID |
-| `GET_ROOT` | `0x05` | Get user's Merkle root (32 bytes) |
-| `GET_DIFF` | `0x06` | Compare Merkle trees for sync |
-| `REGISTER` | `0x10` | Register/login with username + salt + auth hash |
-| `GET_SALT` | `0x11` | Fetch per-username salt |
-| `LIST_MANIFESTS` | `0x12` | List all manifests for a user |
-| `DELETE_MANIFEST` | `0x13` | Delete a manifest |
-| `DB_OVERVIEW` | `0x14` | Get storage statistics |
+| UPLOAD_CHUNK | 0x01 | Store encrypted blob by SHA-256 hash |
+| DOWNLOAD_CHUNK | 0x02 | Retrieve blob by hash |
+| UPLOAD_MANIFEST | 0x03 | Store encrypted manifest envelope |
+| DOWNLOAD_MANIFEST | 0x04 | Retrieve manifest by UUID |
+| GET_ROOT | 0x05 | Get user's Merkle root (32 bytes) |
+| GET_DIFF | 0x06 | Compare Merkle trees for sync |
+| REGISTER | 0x10 | Register/login with username + salt + auth hash |
+| GET_SALT | 0x11 | Fetch per-username salt |
+| LIST_MANIFESTS | 0x12 | List all manifests for a user |
+| DELETE_MANIFEST | 0x13 | Delete a manifest |
+| DB_OVERVIEW | 0x14 | Get storage statistics |
 
 ### HTTP REST API (WASM / Browser)
 
 Browsers cannot open raw QUIC connections (yet). The WASM client uses standard HTTP `fetch()` against the server's Axum REST API on port 8443. The endpoints mirror the QUIC commands:
 
-```
-POST   /api/auth/register          GET  /api/auth/salt/:username
-POST   /api/blobs                  GET  /api/blobs/:hash
-POST   /api/manifests              GET  /api/manifests/:id
-GET    /api/manifests              DELETE /api/manifests/:id
-GET    /api/db/overview
-```
+- `POST /api/auth/register`, `GET /api/auth/salt/:username`
+- `POST /api/blobs`, `GET /api/blobs/:hash`
+- `POST /api/manifests`, `GET /api/manifests/:id`, `DELETE /api/manifests/:id`
+- `GET /api/manifests` (list), `GET /api/db/overview`
 
 Both transports share the same PostgreSQL backend. The protocol is just a delivery mechanism -- the encrypted payloads are identical regardless of transport.
 
 ### Future: WebTransport
 
-WebTransport (W3C spec, supported in Chrome 97+, Firefox 114+) will enable browsers to open QUIC connections directly. When adopted, all three clients unify on the same binary protocol, the HTTP API layer is removed, and the server runs on a single port.
+WebTransport (W3C spec, supported in Chrome 97+, Firefox 114+) will enable browsers to open QUIC connections directly. When adopted:
 
----
+1. The Web client switches from HTTP fetch to WebTransport QUIC
+2. Both clients use the same binary protocol
+3. The HTTP API layer can be removed entirely
+4. Single port deployment (4433 only)
 
 ## File Upload / Download Pipeline
 
@@ -288,31 +256,30 @@ WebTransport (W3C spec, supported in Chrome 97+, Firefox 114+) will enable brows
 4. Concatenate plaintext chunks -> original file
 ```
 
----
-
 ## Content-Addressable Storage and Merkle Sync
 
 Blobs are stored by their **SHA-256 hash** (of the ciphertext). This provides:
 
-1. **Deduplication** -- identical encrypted chunks stored only once
-2. **Integrity verification** -- any blob can be verified by recomputing its hash
-3. **Efficient sync** -- the Merkle tree root is a single 32-byte fingerprint for all user data
+1. **Deduplication**: identical encrypted chunks stored only once
+2. **Integrity verification**: any blob can be verified by recomputing its hash
+3. **Efficient sync**: the Merkle tree root is a single 32-byte fingerprint for all user data
+
+The sync algorithm is simple:
 
 ```
-Sync algorithm:
-  1. Client computes local Merkle root from local blob hashes
-  2. Server returns its Merkle root for the user
-  3. If roots match -> fully synced, done
-  4. If roots differ -> server returns list of leaf hashes
-  5. Client computes: to_upload = local - remote, to_download = remote - local
-  6. Transfer only the missing blobs
+1. Client computes local Merkle root from local blob hashes
+2. Server returns its Merkle root for the user
+3. If roots match -> fully synced, done
+4. If roots differ -> server returns list of leaf hashes
+5. Client computes: to_upload = local - remote, to_download = remote - local
+6. Transfer only the missing blobs
 ```
 
----
+This avoids downloading or re-uploading anything that already exists on both sides.
 
 ## AWS Cost Analysis
 
-A zero-knowledge architecture is not just more secure -- it is **cheaper to operate**. The server does zero encryption. No CPU cycles spent on crypto. All cryptographic work is offloaded to clients.
+A zero-knowledge architecture is not just more secure -- it is **cheaper to operate**. The server does zero encryption. No CPU cycles spent on crypto. All cryptographic work is offloaded to clients. Server compute is dominated by network I/O and simple database queries.
 
 ### Per-User Monthly Cost (5 GB stored, 2 GB transfer)
 
@@ -332,10 +299,12 @@ A zero-knowledge architecture is not just more secure -- it is **cheaper to oper
 | 50,000 | c6g.2xlarge | $196 | $0.0039 |
 | 1,000,000 | 4x c6g.4xlarge | $1,568 | $0.0016 |
 
+QUIC multiplexing means a single server handles thousands of concurrent connections. No encryption CPU overhead on the server side.
+
 ### Total Cost at Scale
 
-| Scale | Storage | Compute | DB (RDS) | **Total** | vs Dropbox ($11.99) |
-|-------|---------|---------|----------|-----------|---------------------|
+| Scale | Storage | Compute | DB (RDS) | Total | vs Dropbox ($11.99) |
+|-------|---------|---------|----------|-------|---------------------|
 | 10K users | $0.324 | $0.010 | $0.036 | **$0.37/user** | 97% cheaper |
 | 50K users | $0.324 | $0.004 | $0.014 | **$0.34/user** | 97% cheaper |
 | 1M users | $0.324 | $0.002 | $0.004 | **$0.33/user** | 97% cheaper |
@@ -344,15 +313,15 @@ A zero-knowledge architecture is not just more secure -- it is **cheaper to oper
 
 | Scale | Revenue/month | AWS Cost/month | Gross Margin |
 |-------|--------------|----------------|-------------|
-| 10K users | $39,900 | $3,700 | **90.7%** |
-| 50K users | $199,500 | $17,000 | **91.5%** |
-| 1M users | $3,990,000 | $330,000 | **91.7%** |
+| 10K users | $39,900 | $3,700 | 90.7% |
+| 50K users | $199,500 | $17,000 | 91.5% |
+| 1M users | $3,990,000 | $330,000 | 91.7% |
 
----
+At scale, cost is dominated by storage and data transfer. Compute is negligible because the server does no encryption.
 
 ## Performance
 
-Measured on localhost with QUIC transport:
+Measured on localhost with the QUIC transport:
 
 | Operation | File Size | Time | Throughput |
 |-----------|----------|------|------------|
@@ -361,15 +330,15 @@ Measured on localhost with QUIC transport:
 | Chunk encryption | 1 MB | <1 ms | >1 GB/s |
 | PBKDF2 key derivation | -- | ~200 ms | -- |
 
----
-
 ## Getting Started
 
 ### Prerequisites
 
-- Rust 1.75+
-- Docker (for PostgreSQL 16)
-- wasm-pack (for Web/WASM build)
+```
+Rust 1.75+
+PostgreSQL 16 (via Docker)
+wasm-pack (for Web build)
+```
 
 ### Quick Start
 
@@ -380,9 +349,11 @@ Measured on localhost with QUIC transport:
 # Open Web UI
 open http://localhost:8080/serve.html
 
-# Run integration tests
-./test/test-cli.sh            # single-user
-./test/test-cli.sh sync       # multi-user isolation
+# Test CLI (single-user)
+./test/test-cli.sh
+
+# Test CLI (multi-user isolation)
+./test/test-cli.sh sync
 
 # Stop everything
 ./test/stop-dev.sh
@@ -397,26 +368,27 @@ After `./test/start-dev.sh`, the `rustbox` binary is available at the project ro
 RUSTBOX_USERNAME=user01 RUSTBOX_PASSWORD=password \
   ./rustbox login --server 127.0.0.1:4433
 
-# Upload (--server not needed after login)
+# Upload a file (--server not needed after login, stored automatically)
 RUSTBOX_PASSWORD=password ./rustbox upload photo.png
 
-# List all files
+# List all files on server
 RUSTBOX_PASSWORD=password ./rustbox files
 
-# Download by manifest ID
+# Download a file by manifest ID
 RUSTBOX_PASSWORD=password ./rustbox download <manifest-id> output.png
 
-# Delete by manifest ID
+# Delete a file by manifest ID
 RUSTBOX_PASSWORD=password ./rustbox delete <manifest-id>
+RUSTBOX_PASSWORD=password ./rustbox delete <manifest-id> --yes   # skip confirm
 
-# Merkle-based sync
+# Sync (Merkle-based)
 RUSTBOX_PASSWORD=password ./rustbox sync
 
-# Vault status
+# Show vault status
 ./rustbox status
 ```
 
-### Default Credentials
+### Default Test Credentials
 
 ```
 Username: user01
@@ -424,52 +396,48 @@ Password: password
 Server:   127.0.0.1:4433
 ```
 
----
-
 ## Project Structure
 
 ```
-rust-box/
-    rustbox-core/              Shared cryptographic core (88 tests)
+rustbox-poc-01-v2/
+    rustbox               <-- CLI binary (copied here on build)
+    rustbox-core/          Shared crypto, chunking, Merkle, manifest, traits
         src/
-            crypto/            PBKDF2, HKDF, XChaCha20-Poly1305, key hierarchy
-            chunking/          1 MB splitter, encrypt/decrypt pipeline
-            merkle/            SHA-256 Merkle tree with inclusion proofs
-            manifest/          FileManifest + ChunkEntry (bincode serialization)
-            sync/              Diff engine (compare Merkle roots)
-            crisp/             CRISP protocol (ECDH, AES-GCM, PSK)
-            traits/            Transport, Storage, Clock, SecureRandom
-    rustbox-server/            Axum HTTP + Quinn QUIC server
+            crypto/        PBKDF2, HKDF, XChaCha20-Poly1305, key hierarchy
+            chunking/      1 MB splitter, encrypt/decrypt pipeline
+            merkle/        SHA-256 Merkle tree with inclusion proofs
+            manifest/      FileManifest + ChunkEntry (bincode serialization)
+            sync/          Diff engine (compare local vs remote Merkle roots)
+            crisp/         CRISP protocol (ECDH handshake, AES-GCM records, PSK)
+            traits/        Transport, Storage, Clock, SecureRandom (WASM-safe)
+    rustbox-server/        Axum HTTP + Quinn QUIC, PostgreSQL via sqlx
         src/
-            api/               REST endpoints
-            quic/              Binary protocol handler (11 commands)
-            db/                PostgreSQL queries
-    rustbox-cli/               Terminal client (clap, QUIC, SQLite)
-    rustbox-wasm/              WebAssembly client (wasm-bindgen, fetch, IndexedDB)
-    rustbox-tauri/             Desktop client (Tauri v2, native QUIC)
-    rustbox-ui/                Shared HTML/CSS/JS frontend
+            api/           REST endpoints (auth, blobs, manifests, db)
+            quic/          Binary protocol handler (11 commands)
+            db/            SQL queries (users, blobs, manifests)
+    rustbox-cli/           Terminal client (clap, QUIC transport, SQLite)
+    rustbox-wasm/          WebAssembly build (wasm-bindgen, fetch transport, IndexedDB)
+    rustbox-ui/            Shared HTML/CSS/JS frontend
         js/
-            adapter.js         Backend abstraction (WASM vs Tauri)
-            app.js             Application state machine
-            auth.js            Login flow + session persistence
-            file-manager.js    Upload, download, delete UI
-            auto-sync.js       4-second manifest polling
-            database.js        Server storage inspector
-    test/
-        start-dev.sh           Launch all services
-        stop-dev.sh            Stop all services
-        test-cli.sh            Integration tests
-    migrations/                PostgreSQL schema
-    docker-compose.yml         PostgreSQL 16 container
+            adapter.js     WASM backend adapter
+            app.js         Application state machine
+            auth.js        Login flow
+            file-manager.js Upload, download, delete UI
+            auto-sync.js   4-second manifest polling
+            database.js    Server storage inspector
+    test/                  Scripts
+        start-dev.sh       Launch all services (PostgreSQL + Server + Web UI)
+        stop-dev.sh        Stop all services
+        test-cli.sh        CLI integration tests (single-user, multi-user, files)
+    migrations/            PostgreSQL schema
+    docker-compose.yml     PostgreSQL 16 container
 ```
-
----
 
 ## What This Proves
 
-1. **Zero-knowledge encryption is practical for file sync**, not just theoretical. Files are uploaded, synced, and downloaded across three different client types with full encryption.
+1. **Zero-knowledge encryption is practical for file sync**, not just theoretical. Files are uploaded, synced, and downloaded across different client types with full encryption.
 
-2. **A single Rust core can target CLI, WebAssembly, and native desktop simultaneously.** The same 3,000 lines of crypto code compile to x86, ARM, and WASM with zero platform-specific branches.
+2. **A single Rust core can target CLI and WebAssembly simultaneously.** The same 3,000 lines of crypto code compile to x86, ARM, and WASM with zero platform-specific branches.
 
 3. **QUIC provides real advantages over HTTP** for file transfer: multiplexed streams, lower overhead, 0-RTT reconnection, and native UDP efficiency.
 
@@ -481,4 +449,4 @@ rust-box/
 
 ---
 
-<sub>This is a proof of concept, not production software. It lacks features like file versioning, sharing, folder sync, conflict resolution, rate limiting, and proper certificate management. But the cryptographic foundation is sound, the cross-client architecture works, and the performance is more than adequate for a real product.</sub>
+This is a proof of concept, not production software. It lacks features like file versioning, sharing, folder sync, conflict resolution, rate limiting, and proper certificate management. But the cryptographic foundation is sound, the cross-client architecture works, and the performance is more than adequate for a real product.
