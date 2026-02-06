@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Zero-Knowledge Encrypted File Sync</strong><br/>
-  <sub>One Rust core. Two clients. The server sees nothing.</sub>
+  <sub>One Core, Two Clients, A Blind Server.</sub>
 </p>
 
 <p align="center">
