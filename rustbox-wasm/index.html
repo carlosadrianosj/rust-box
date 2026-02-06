@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RustBox - Zero Knowledge File Sync</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>RustBox POC1 <span class="version-badge" id="version-badge">loading...</span></h1>
+
+    <section id="vault-section">
+        <h2>Vault</h2>
+        <div class="row">
+            <input type="password" id="password" placeholder="Master password" autocomplete="off">
+            <button id="btn-init">Initialize / Unlock</button>
+            <button id="btn-status" class="secondary">Status</button>
+        </div>
+    </section>
+
+    <section id="upload-section">
+        <h2>Upload File</h2>
+        <div class="row">
+            <input type="file" id="file-input">
+        </div>
+        <div class="row">
+            <label for="server-url">Server:</label>
+            <input type="text" id="server-url" value="https://localhost:8443">
+            <button id="btn-upload">Upload</button>
+        </div>
+    </section>
+
+    <section id="download-section">
+        <h2>Download File</h2>
+        <div class="row">
+            <input type="text" id="manifest-id" placeholder="Manifest ID">
+            <button id="btn-download">Download</button>
+        </div>
+    </section>
+
+    <section id="sync-section">
+        <h2>Sync</h2>
+        <div class="row">
+            <button id="btn-sync">Sync with Server</button>
+        </div>
+    </section>
+
+    <section id="status">
+        <h2>Log</h2>
+        <pre id="status-output">Ready. Initialize vault to begin.</pre>
+    </section>
+
+    <script type="module">
+        import init, {
+            init_vault,
+            upload_file,
+            download_file,
+            sync_files,
+            get_status,
+            rustbox_version
+        } from './pkg/rustbox_wasm.js';
+
+        const output = document.getElementById('status-output');
+        const versionBadge = document.getElementById('version-badge');
+
+        function log(msg, cls) {
+            const line = document.createElement('span');
+            if (cls) line.className = cls;
+            line.textContent = msg + '\n';
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearLog() {
+            output.textContent = '';
+        }
+
+        function setButtonsEnabled(enabled) {
+            document.querySelectorAll('button').forEach(btn => {
+                btn.disabled = !enabled;
+            });
+        }
+
+        // ---- Initialize WASM ----
+        async function startup() {
+            try {
+                await init();
+                const version = rustbox_version();
+                versionBadge.textContent = 'v' + version;
+                log('WASM loaded. RustBox v' + version, 'success');
+            } catch (err) {
+                log('WASM init failed: ' + err, 'error');
+            }
+        }
+
+        // ---- Vault ----
+        document.getElementById('btn-init').addEventListener('click', async () => {
+            const password = document.getElementById('password').value;
+            if (!password) {
+                log('Error: password is required', 'error');
+                return;
+            }
+            setButtonsEnabled(false);
+            log('Initializing vault...', 'progress');
+            try {
+                const result = await init_vault(password);
+                log('Vault ready: ' + JSON.stringify(result), 'success');
+            } catch (err) {
+                log('Vault error: ' + err, 'error');
+            }
+            setButtonsEnabled(true);
+        });
+
+        // ---- Status ----
+        document.getElementById('btn-status').addEventListener('click', async () => {
+            setButtonsEnabled(false);
+            try {
+                const status = await get_status();
+                log('Status: ' + JSON.stringify(status, null, 2), 'info');
+            } catch (err) {
+                log('Status error: ' + err, 'error');
+            }
+            setButtonsEnabled(true);
+        });
+
+        // ---- Upload ----
+        document.getElementById('btn-upload').addEventListener('click', async () => {
+            const fileInput = document.getElementById('file-input');
+            const serverUrl = document.getElementById('server-url').value;
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                log('Error: select a file first', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            setButtonsEnabled(false);
+            log('Reading file "' + file.name + '" (' + file.size + ' bytes)...', 'progress');
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+
+                log('Encrypting and uploading...', 'progress');
+                const result = await upload_file(data, file.name, serverUrl);
+                log('Upload complete: ' + JSON.stringify(result), 'success');
+
+                // Pre-fill download field with manifest ID
+                const manifestIdField = document.getElementById('manifest-id');
+                if (result.manifest_id) {
+                    manifestIdField.value = result.manifest_id;
+                }
+            } catch (err) {
+                log('Upload error: ' + err, 'error');
+            }
+            setButtonsEnabled(true);
+        });
+
+        // ---- Download ----
+        document.getElementById('btn-download').addEventListener('click', async () => {
+            const manifestId = document.getElementById('manifest-id').value;
+            const serverUrl = document.getElementById('server-url').value;
+
+            if (!manifestId) {
+                log('Error: enter a manifest ID', 'error');
+                return;
+            }
+
+            setButtonsEnabled(false);
+            log('Downloading manifest "' + manifestId + '"...', 'progress');
+
+            try {
+                const data = await download_file(manifestId, serverUrl);
+                log('Download complete: ' + data.length + ' bytes', 'success');
+
+                // Trigger browser download
+                const blob = new Blob([data]);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'rustbox-download';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                log('File saved via browser download dialog', 'info');
+            } catch (err) {
+                log('Download error: ' + err, 'error');
+            }
+            setButtonsEnabled(true);
+        });
+
+        // ---- Sync ----
+        document.getElementById('btn-sync').addEventListener('click', async () => {
+            const serverUrl = document.getElementById('server-url').value;
+            setButtonsEnabled(false);
+            log('Syncing with server...', 'progress');
+
+            try {
+                const result = await sync_files(serverUrl);
+                log('Sync result: ' + JSON.stringify(result), 'success');
+            } catch (err) {
+                log('Sync error: ' + err, 'error');
+            }
+            setButtonsEnabled(true);
+        });
+
+        // ---- Go ----
+        startup();
+    </script>
+</body>
+</html>

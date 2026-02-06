@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- Cube body - back face -->
+  <path d="M64 20L20 44v40l44 24 44-24V44L64 20z" fill="#1a1a2e" stroke="#4cc9f0" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Cube body - left face -->
+  <path d="M20 44l44 24v40L20 84V44z" fill="rgba(76,201,240,0.08)" stroke="#4cc9f0" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Cube body - right face -->
+  <path d="M108 44L64 68v40l44-24V44z" fill="rgba(76,201,240,0.15)" stroke="#4cc9f0" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Cube body - top face -->
+  <path d="M64 20L20 44l44 24 44-24L64 20z" fill="rgba(76,201,240,0.22)" stroke="#4cc9f0" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Lock body -->
+  <rect x="48" y="58" width="32" height="24" rx="4" fill="#1a1a2e" stroke="#4cc9f0" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Lock shackle -->
+  <path d="M54 58V50a10 10 0 0 1 20 0v8" fill="none" stroke="#4cc9f0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Keyhole -->
+  <circle cx="64" cy="68" r="3" fill="#4cc9f0"/>
+  <path d="M64 71v4" stroke="#4cc9f0" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

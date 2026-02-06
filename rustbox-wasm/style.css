@@ -1,0 +1,184 @@
+/* RustBox POC1 - Minimal UI Styles */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0d1117;
+    color: #c9d1d9;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    line-height: 1.6;
+}
+
+h1 {
+    color: #58a6ff;
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 0.5rem;
+}
+
+h1 span {
+    font-size: 0.8rem;
+    color: #8b949e;
+    font-weight: normal;
+    margin-left: 0.5rem;
+}
+
+h2 {
+    color: #c9d1d9;
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+section {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.row:last-child {
+    margin-bottom: 0;
+}
+
+input[type="password"],
+input[type="text"],
+input[type="file"] {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    color: #c9d1d9;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    flex: 1;
+}
+
+input[type="password"]:focus,
+input[type="text"]:focus {
+    border-color: #58a6ff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+}
+
+input[type="file"] {
+    padding: 0.35rem 0.5rem;
+    cursor: pointer;
+}
+
+input[type="file"]::file-selector-button {
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    color: #c9d1d9;
+    padding: 0.25rem 0.75rem;
+    margin-right: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+input[type="file"]::file-selector-button:hover {
+    background: #30363d;
+}
+
+button {
+    background: #238636;
+    border: 1px solid #2ea043;
+    border-radius: 4px;
+    color: #ffffff;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+
+button:hover {
+    background: #2ea043;
+}
+
+button:active {
+    background: #1a7f37;
+}
+
+button:disabled {
+    background: #21262d;
+    border-color: #30363d;
+    color: #484f58;
+    cursor: not-allowed;
+}
+
+button.secondary {
+    background: #21262d;
+    border-color: #30363d;
+    color: #c9d1d9;
+}
+
+button.secondary:hover {
+    background: #30363d;
+}
+
+#status-output {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #8b949e;
+    max-height: 300px;
+    overflow-y: auto;
+    line-height: 1.5;
+}
+
+.success {
+    color: #3fb950;
+}
+
+.error {
+    color: #f85149;
+}
+
+.info {
+    color: #58a6ff;
+}
+
+.progress {
+    color: #d29922;
+}
+
+label {
+    font-size: 0.85rem;
+    color: #8b949e;
+    min-width: 80px;
+}
+
+.version-badge {
+    display: inline-block;
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.7rem;
+    color: #8b949e;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+}

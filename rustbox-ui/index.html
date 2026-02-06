@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RustBox - Zero-Knowledge Encrypted File Sync</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/toasts.css">
+</head>
+<body>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         LOGIN SCREEN
+         ═══════════════════════════════════════════════════════════════ -->
+    <div id="screen-login" class="screen screen-active">
+        <div class="login-card">
+            <div class="login-logo">
+                <img src="assets/logo.png" alt="RustBox" class="logo-img">
+                <h1 class="login-title">RustBox</h1>
+                <p class="login-subtitle">Zero-Knowledge Encrypted File Sync</p>
+            </div>
+            <form id="form-login" autocomplete="off">
+                <input type="hidden" id="input-server" value="">
+                <div class="form-group">
+                    <label for="input-login">Login</label>
+                    <input
+                        type="text"
+                        id="input-login"
+                        class="form-input"
+                        placeholder="Enter your login"
+                        spellcheck="false"
+                        autocomplete="off"
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="input-password">Password</label>
+                    <input
+                        type="password"
+                        id="input-password"
+                        class="form-input"
+                        placeholder="Enter your password"
+                        autocomplete="off"
+                    >
+                </div>
+                <button type="submit" id="btn-login" class="btn btn-primary btn-full">
+                    <span class="btn-text">Sign In</span>
+                    <span class="btn-spinner spinner hidden"></span>
+                </button>
+            </form>
+            <p class="login-footer">
+                End-to-end encrypted. Your password never leaves this device.
+            </p>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         FILE MANAGER SCREEN
+         ═══════════════════════════════════════════════════════════════ -->
+    <div id="screen-files" class="screen">
+
+        <!-- Header Bar -->
+        <header class="header-bar">
+            <div class="header-left">
+                <img src="assets/logo.png" alt="RustBox" class="header-logo">
+                <span class="header-title">RustBox</span>
+            </div>
+            <div class="header-right">
+                <button id="btn-sync" class="btn btn-icon" title="Sync Files">
+                    <svg class="icon icon-sync" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                </button>
+                <button id="btn-logout" class="btn btn-icon" title="Logout">
+                    <svg class="icon icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <button class="tab-btn tab-active" data-tab="files">Files</button>
+            <button class="tab-btn" data-tab="database">Database</button>
+        </div>
+
+        <!-- Files Tab -->
+        <div id="tab-files" class="tab-content tab-visible">
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button id="btn-upload" class="btn btn-primary btn-small">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Upload
+                </button>
+                <input type="file" id="file-input" multiple hidden>
+            </div>
+            <div class="toolbar-right">
+                <span id="sync-status" class="sync-indicator sync-idle">Sync idle</span>
+                <span id="file-stats" class="file-stats">0 files &middot; 0 B</span>
+            </div>
+        </div>
+
+        <!-- File List -->
+        <div class="file-list-container">
+            <table class="file-list-table" id="file-table">
+                <thead>
+                    <tr>
+                        <th class="col-icon"></th>
+                        <th class="col-name">Name</th>
+                        <th class="col-size">Size</th>
+                        <th class="col-date">Date</th>
+                        <th class="col-chunks">Chunks</th>
+                        <th class="col-actions"></th>
+                    </tr>
+                </thead>
+                <tbody id="file-table-body">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state">
+                <svg class="empty-icon" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="10" y="18" width="60" height="48" rx="4" opacity="0.3"></rect>
+                    <path d="M10 30h60" opacity="0.3"></path>
+                    <path d="M30 50v-8m0 0l-6 6m6-6l6 6" stroke-width="2" opacity="0.5"></path>
+                    <path d="M50 50v-8m0 0l-6 6m6-6l6 6" stroke-width="2" opacity="0.5"></path>
+                </svg>
+                <p class="empty-title">No files yet</p>
+                <p class="empty-text">Upload files or drag and drop them here</p>
+            </div>
+        </div>
+
+        </div><!-- /tab-files -->
+
+        <!-- Database Tab -->
+        <div id="tab-database" class="tab-content">
+            <p class="db-loading">Select the Database tab to view server storage.</p>
+        </div>
+
+        <!-- Drag & Drop Overlay -->
+        <div id="dropzone-overlay" class="dropzone-overlay hidden">
+            <div class="dropzone-content">
+                <svg class="dropzone-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M32 44V20m0 0l-10 10m10-10l10 10"></path>
+                    <path d="M52 44v8a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4v-8"></path>
+                </svg>
+                <p class="dropzone-text">Drop files to encrypt &amp; upload</p>
+            </div>
+        </div>
+
+        <!-- Logs Panel (Collapsible) -->
+        <div id="logs-panel" class="logs-panel collapsed">
+            <div class="logs-header" id="logs-toggle">
+                <span class="logs-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    Activity Log
+                </span>
+                <svg class="logs-chevron icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+            </div>
+            <div class="logs-content">
+                <div id="logs-entries" class="logs-entries"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         TOAST CONTAINER
+         ═══════════════════════════════════════════════════════════════ -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/utils.js"></script>
+    <script src="js/toast.js"></script>
+    <script src="js/adapter.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/file-manager.js"></script>
+    <script src="js/auto-sync.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

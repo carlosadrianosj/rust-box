@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = [
+    "rustbox-core",
+    "rustbox-cli",
+    "rustbox-server",
+    "rustbox-wasm",
+]

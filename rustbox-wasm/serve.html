@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>RustBox - Zero-Knowledge File Sync</title>
+    <link rel="stylesheet" href="./rustbox-ui/css/main.css?v=20260206">
+    <link rel="stylesheet" href="./rustbox-ui/css/components.css?v=20260206">
+    <link rel="stylesheet" href="./rustbox-ui/css/toasts.css?v=20260206">
+</head>
+<body>
+    <!-- Load the shared UI -->
+    <div id="app"></div>
+
+    <script type="module">
+        // Load and initialize WASM
+        import init, * as wasm from './pkg/rustbox_wasm.js';
+
+        async function bootstrap() {
+            // Initialize WASM module
+            await init();
+            console.log('RustBox WASM initialized, version:', wasm.rustbox_version());
+
+            // Cache-bust: append timestamp so F5 always fetches fresh JS
+            const cacheBust = `?v=${Date.now()}`;
+
+            // Load the shared UI scripts
+            const scripts = [
+                './rustbox-ui/js/utils.js' + cacheBust,
+                './rustbox-ui/js/toast.js' + cacheBust,
+                './rustbox-ui/js/adapter.js' + cacheBust,
+                './rustbox-ui/js/auth.js' + cacheBust,
+                './rustbox-ui/js/file-manager.js' + cacheBust,
+                './rustbox-ui/js/auto-sync.js' + cacheBust,
+                './rustbox-ui/js/database.js' + cacheBust,
+                './rustbox-ui/js/app.js' + cacheBust,
+            ];
+
+            // First, fetch and inject the HTML template
+            const resp = await fetch('./rustbox-ui/index.html' + cacheBust);
+            const html = await resp.text();
+
+            // Extract the body content from the template
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const appContent = doc.querySelector('#app') || doc.body;
+            document.getElementById('app').innerHTML = appContent.innerHTML;
+
+            // Load scripts sequentially to respect dependencies
+            for (const src of scripts) {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.body.appendChild(script);
+                });
+            }
+
+            // Mark that we're in WASM boot mode (prevents DOMContentLoaded double-init)
+            window.__RUSTBOX_WASM_BOOT__ = true;
+
+            // Initialize the backend adapter with WASM module
+            if (window.backend) {
+                await window.backend.init(wasm);
+            }
+
+            // Dispatch ready event for app.js
+            window.dispatchEvent(new CustomEvent('rustbox-ready'));
+        }
+
+        bootstrap().catch(err => {
+            console.error('RustBox bootstrap failed:', err);
+            document.body.innerHTML = `
+                <div style="color: #f44336; padding: 40px; font-family: monospace;">
+                    <h2>RustBox Failed to Load</h2>
+                    <pre>${err}</pre>
+                    <p>Make sure to build WASM first: <code>wasm-pack build --target web</code></p>
+                </div>
+            `;
+        });
+    </script>
+</body>
+</html>

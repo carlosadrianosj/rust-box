@@ -1,0 +1,508 @@
+/* ═══════════════════════════════════════════════════════════════════
+   RustBox - Component Styles
+   Buttons, inputs, empty state, spinners, file icons
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── Buttons ───────────────────────────────────────────────────── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: var(--font-family);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition:
+        background var(--transition-fast),
+        color var(--transition-fast),
+        box-shadow var(--transition-fast),
+        transform 80ms ease;
+    outline: none;
+}
+
+.btn:active {
+    transform: scale(0.97);
+}
+
+.btn:focus-visible {
+    box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Primary */
+.btn-primary {
+    background: var(--accent);
+    color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    box-shadow: 0 4px 16px rgba(168, 85, 247, 0.25);
+}
+
+/* Secondary */
+.btn-secondary {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--border-light);
+}
+
+/* Icon-only button */
+.btn-icon {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: var(--radius);
+}
+
+.btn-icon:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.btn-icon .icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* Small */
+.btn-small {
+    padding: 7px 14px;
+    font-size: 12px;
+    border-radius: var(--radius-sm);
+}
+
+.btn-small .icon {
+    width: 14px;
+    height: 14px;
+}
+
+/* Full width */
+.btn-full {
+    width: 100%;
+    padding: 12px 20px;
+}
+
+/* Danger */
+.btn-danger {
+    background: var(--danger);
+    color: #ffffff;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #e53935;
+    box-shadow: 0 4px 16px rgba(244, 67, 54, 0.25);
+}
+
+/* Button content helpers */
+.btn-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-spinner {
+    display: inline-block;
+}
+
+/* Syncing animation */
+.btn-icon.syncing .icon-sync {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* Download button in table */
+.btn-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-download:hover {
+    background: rgba(168, 85, 247, 0.2);
+    color: var(--accent-hover);
+}
+
+.btn-download .icon {
+    width: 12px;
+    height: 12px;
+}
+
+/* ─── Form Inputs ───────────────────────────────────────────────── */
+.form-input {
+    display: block;
+    width: 100%;
+    padding: 11px 14px;
+    font-family: var(--font-family);
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    outline: none;
+    transition:
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast);
+}
+
+.form-input::placeholder {
+    color: var(--text-muted);
+}
+
+.form-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.12);
+}
+
+.form-input:hover:not(:focus) {
+    border-color: var(--border-light);
+}
+
+/* Input with error state */
+.form-input.input-error {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px var(--danger-dim);
+}
+
+/* ─── Empty State ───────────────────────────────────────────────── */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.empty-state.hidden {
+    display: none;
+}
+
+.empty-icon {
+    width: 80px;
+    height: 80px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.empty-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.empty-text {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* ─── Spinner ───────────────────────────────────────────────────── */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spinnerRotate 0.6s linear infinite;
+}
+
+.spinner-large {
+    width: 24px;
+    height: 24px;
+    border-width: 3px;
+}
+
+@keyframes spinnerRotate {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* ─── File Type Icons ───────────────────────────────────────────── */
+.file-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.file-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.file-icon-pdf {
+    background: rgba(244, 67, 54, 0.15);
+    color: #f44336;
+}
+
+.file-icon-doc {
+    background: rgba(33, 150, 243, 0.15);
+    color: #2196f3;
+}
+
+.file-icon-xls {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4caf50;
+}
+
+.file-icon-img {
+    background: rgba(156, 39, 176, 0.15);
+    color: #ce93d8;
+}
+
+.file-icon-video {
+    background: rgba(255, 152, 0, 0.15);
+    color: #ff9800;
+}
+
+.file-icon-audio {
+    background: rgba(233, 30, 99, 0.15);
+    color: #e91e63;
+}
+
+.file-icon-zip {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+}
+
+.file-icon-code {
+    background: rgba(0, 188, 212, 0.15);
+    color: #00bcd4;
+}
+
+.file-icon-text {
+    background: rgba(158, 158, 158, 0.15);
+    color: #9e9e9e;
+}
+
+.file-icon-default {
+    background: rgba(120, 120, 140, 0.12);
+    color: var(--text-muted);
+}
+
+/* ─── Sync Indicator ─────────────────────────────────────────── */
+.sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.sync-indicator::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.sync-idle { color: var(--text-muted); }
+.sync-idle::before { background: var(--text-muted); opacity: 0.5; }
+
+.sync-checking { color: #d4a017; }
+.sync-checking::before { background: #d4a017; animation: pulse-dot 1s ease-in-out infinite; }
+
+.sync-synced { color: #2ea043; }
+.sync-synced::before { background: #2ea043; }
+
+.sync-error { color: #da3633; }
+.sync-error::before { background: #da3633; }
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* ─── Delete Button ──────────────────────────────────────────── */
+.btn-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    margin-left: 4px;
+    transition: color 0.15s, background 0.15s;
+}
+
+.btn-delete:hover {
+    color: #da3633;
+    background: rgba(218, 54, 51, 0.1);
+}
+
+.btn-delete .icon {
+    width: 14px;
+    height: 14px;
+}
+
+/* ─── Tabs ───────────────────────────────────────────────────────── */
+.tab-bar {
+    display: flex;
+    gap: 0;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-primary);
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    font-family: var(--font-family);
+}
+
+.tab-btn:hover { color: var(--text-primary); }
+
+.tab-btn.tab-active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.tab-content { display: none; }
+.tab-content.tab-visible { display: block; }
+
+/* ─── Database Tab ──────────────────────────────────────────── */
+.db-stats {
+    display: flex;
+    gap: 24px;
+    padding: 20px 16px;
+}
+
+.db-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.db-stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.db-stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.db-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 8px 16px;
+    margin: 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg-secondary);
+}
+
+.db-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.db-table th {
+    text-align: left;
+    padding: 6px 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border-bottom: 1px solid var(--border);
+}
+
+.db-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+}
+
+.db-cell-name { font-weight: 500; color: var(--text-primary); }
+.db-cell-id, .db-cell-hash {
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.db-loading, .db-empty, .db-error {
+    padding: 20px 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.db-error { color: #da3633; }
+
+/* ─── Misc ──────────────────────────────────────────────────────── */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

@@ -1,0 +1,256 @@
+/* ═══════════════════════════════════════════════════════════════════
+   RustBox - Toast Notifications
+   Apple-style frosted glass toasts with slide-in/out animations
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── Container ─────────────────────────────────────────────────── */
+.toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    max-height: calc(100vh - 32px);
+    overflow: hidden;
+}
+
+/* ─── Toast Base ────────────────────────────────────────────────── */
+.toast {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 320px;
+    max-width: 420px;
+    padding: 14px 40px 14px 16px;
+    background: rgba(30, 30, 30, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        0 2px 8px rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+    overflow: hidden;
+    will-change: transform, opacity;
+
+    /* Slide-in animation */
+    animation: toastSlideIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Left accent bar */
+.toast::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 3px 0 0 3px;
+}
+
+/* ─── Slide Animations ──────────────────────────────────────────── */
+@keyframes toastSlideIn {
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes toastSlideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+}
+
+.toast-exit {
+    animation: toastSlideOut 0.35s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+/* ─── Toast Icon ────────────────────────────────────────────────── */
+.toast-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+.toast-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* ─── Toast Body ────────────────────────────────────────────────── */
+.toast-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.toast-message {
+    font-size: 13px;
+    font-weight: 500;
+    color: #f0f0f0;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.toast-detail {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 2px;
+}
+
+/* ─── Close Button ──────────────────────────────────────────────── */
+.toast-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+    padding: 0;
+}
+
+.toast-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.toast-close svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ─── Toast Types ───────────────────────────────────────────────── */
+
+/* Success */
+.toast-success::before {
+    background: #4caf50;
+}
+
+.toast-success .toast-icon {
+    color: #4caf50;
+}
+
+/* Error */
+.toast-error::before {
+    background: #f44336;
+}
+
+.toast-error .toast-icon {
+    color: #f44336;
+}
+
+/* Info */
+.toast-info::before {
+    background: #a855f7;
+}
+
+.toast-info .toast-icon {
+    color: #a855f7;
+}
+
+/* Progress */
+.toast-progress::before {
+    background: #ff9800;
+}
+
+.toast-progress .toast-icon {
+    color: #ff9800;
+}
+
+/* ─── Progress Bar (for progress toasts) ────────────────────────── */
+.toast-progress-bar-container {
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.toast-progress-bar {
+    height: 100%;
+    background: #ff9800;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 300ms ease;
+}
+
+/* Indeterminate progress animation */
+.toast-progress-bar.indeterminate {
+    width: 30%;
+    animation: progressIndeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progressIndeterminate {
+    0% {
+        transform: translateX(-100%);
+    }
+    50% {
+        transform: translateX(250%);
+    }
+    100% {
+        transform: translateX(-100%);
+    }
+}
+
+/* ─── Progress Spinner (inline in icon) ─────────────────────────── */
+.toast-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 152, 0, 0.2);
+    border-top-color: #ff9800;
+    border-radius: 50%;
+    animation: toastSpinnerRotate 0.8s linear infinite;
+}
+
+@keyframes toastSpinnerRotate {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* ─── Auto-dismiss Timer Bar ────────────────────────────────────── */
+.toast-timer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 0 0 0 12px;
+    animation: toastTimer var(--toast-duration, 4s) linear forwards;
+}
+
+@keyframes toastTimer {
+    from { width: 100%; }
+    to   { width: 0%; }
+}
+
+/* ─── Hover Pause ───────────────────────────────────────────────── */
+.toast:hover .toast-timer {
+    animation-play-state: paused;
+}

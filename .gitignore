@@ -1,0 +1,27 @@
+# Build
+/target/
+/rustbox
+
+# Vault
+.rustbox/
+
+# Environment
+.env
+*.pem
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# WASM build output
+rustbox-wasm/pkg/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

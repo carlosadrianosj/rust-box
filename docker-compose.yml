@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: rustbox
+      POSTGRES_USER: rustbox
+      POSTGRES_PASSWORD: rustbox_secret
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks: [rustbox-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rustbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build: .
+    ports:
+      - "8443:8443"
+      - "4433:4433/udp"
+    environment:
+      RUST_LOG: info
+      DATABASE_URL: postgres://rustbox:rustbox_secret@postgres:5432/rustbox
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [rustbox-net]
+
+volumes:
+  pgdata:
+networks:
+  rustbox-net:
+    driver: bridge
