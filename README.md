@@ -1,12 +1,34 @@
-# RustBox: Zero-Knowledge Encrypted File Sync
+<p align="center">
+  <img src="rust_box_v4.png" alt="RustBox" width="280" />
+</p>
 
-## What Is This?
+<h1 align="center">RustBox</h1>
+
+<p align="center">
+  <strong>Zero-Knowledge Encrypted File Sync</strong><br/>
+  <sub>One Rust core. Two clients. The server sees nothing.</sub>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/language-Rust-orange?style=flat-square" alt="Rust" />
+  <img src="https://img.shields.io/badge/crypto-XChaCha20--Poly1305-blue?style=flat-square" alt="Crypto" />
+  <img src="https://img.shields.io/badge/transport-QUIC-green?style=flat-square" alt="QUIC" />
+  <img src="https://img.shields.io/badge/targets-CLI%20%7C%20WASM-purple?style=flat-square" alt="Targets" />
+  <img src="https://img.shields.io/badge/tests-88%20passing-brightgreen?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/status-Proof%20of%20Concept-yellow?style=flat-square" alt="Status" />
+</p>
+
+---
+
+## Overview
 
 RustBox is a proof of concept for a cloud storage system where **the server is blind**. It stores encrypted data and has no ability to read, decrypt, or understand the files users upload. The server knows a file exists, it knows a timestamp, it knows how many encrypted chunks make up that file. But it cannot see filenames, file contents, file types, or any meaningful metadata. Everything is encrypted client-side before it ever leaves the user's machine.
 
 This is not "we promise we won't look at your data." This is **"we mathematically cannot, even if compelled by a court order."**
 
 The goal was to prove that zero-knowledge encryption is practical for real file sync -- not just a theoretical exercise -- and that a single Rust codebase can power CLI and Web (WASM) clients simultaneously.
+
+---
 
 ## The Core Challenge
 
@@ -21,12 +43,14 @@ Each target has different async runtimes, different random number generators, di
 
 `rustbox-core` defines traits (`Transport`, `ContentAddressableStorage`, `PersistentStorage`, `SecureRandom`, `Clock`) using `#[async_trait(?Send)]` -- which removes the `Send + Sync` requirement and allows the same trait to work in both native Tokio and browser WASM contexts. Each client crate provides its own implementations:
 
-- CLI: `QuicTransport`, `SqliteMeta`, filesystem blobs
-- WASM: `FetchTransport`, `IndexedDbStorage`, browser `crypto`
+- **CLI:** `QuicTransport`, `SqliteMeta`, filesystem blobs
+- **WASM:** `FetchTransport`, `IndexedDbStorage`, browser `crypto`
 
 The cryptographic core (PBKDF2, HKDF, XChaCha20-Poly1305, Merkle trees, chunking pipeline) is identical across both. Same algorithm, same key derivation, same byte-level output. A file uploaded from the CLI can be downloaded and decrypted from the browser with zero compatibility issues.
 
 This proves: **a single Rust crate can target CLI and WebAssembly simultaneously** while maintaining cryptographic correctness across all platforms.
+
+---
 
 ## Architecture
 
@@ -48,9 +72,11 @@ This proves: **a single Rust crate can target CLI and WebAssembly simultaneously
                    PostgreSQL 16
 ```
 
-**Total: ~9,700 lines of Rust, ~2,200 lines of JavaScript/HTML/CSS, 88 unit tests, 4 crates.**
+> **~9,700 lines of Rust | ~2,200 lines of JS/HTML/CSS | 88 unit tests | 4 crates**
 
 The `rustbox-ui/` directory contains a shared HTML/CSS/JS frontend used by the WASM build (served as a static page). An adapter layer (`adapter.js`) wraps the WASM backend: calls go through `wasm-bindgen`.
+
+---
 
 ## Cryptographic Design
 
@@ -82,6 +108,8 @@ master_key (256 bits)
 
 **PBKDF2** (100,000 iterations) provides brute-force resistance for the master key derivation. **HKDF-SHA256** (HMAC-based Key Derivation Function) expands the master key into purpose-specific subkeys. Each file gets its own encryption key. Each chunk within a file gets its own key derived from the file key plus the chunk index. This means no two chunks in the entire system share a key, even across files.
 
+---
+
 ### Encryption: XChaCha20-Poly1305
 
 All encryption uses **XChaCha20-Poly1305**, a modern AEAD (Authenticated Encryption with Associated Data) cipher.
@@ -98,6 +126,8 @@ All encryption uses **XChaCha20-Poly1305**, a modern AEAD (Authenticated Encrypt
 - **No hardware dependency**: XChaCha20 performs consistently on all platforms (including WASM in browsers without AES-NI).
 - **Poly1305 authentication**: any tampering with ciphertext is detected on decryption. Chunk AAD (Additional Authenticated Data) includes the chunk index, preventing reordering attacks.
 
+---
+
 ### What the Server Sees vs. What It Cannot See
 
 | Server stores | Server cannot see |
@@ -110,6 +140,8 @@ All encryption uses **XChaCha20-Poly1305**, a modern AEAD (Authenticated Encrypt
 | SHA-256(auth_key) for identity | Password, master key, any key |
 
 The server is a **content-addressable blob store** that speaks a binary protocol. It has zero imports from the crypto modules. It cannot decrypt anything even with full database access.
+
+---
 
 ### Cross-Client Identity
 
@@ -131,6 +163,8 @@ Client B (any other client, same user):
 ```
 
 No password or key ever leaves the client. The server stores only the salt (public, not secret) and a hash of a derived auth key (one-way, cannot be reversed).
+
+---
 
 ## The CRISP Protocol
 
@@ -171,6 +205,8 @@ After the initial handshake, a **PSK ticket** is issued. Subsequent connections 
 RustBox's QUIC transport (CLI) relies on **QUIC's built-in TLS 1.3** for transport encryption. The CRISP protocol in `rustbox-core` provides an **application-layer security option** -- it can establish encrypted channels independently of the transport layer, useful when QUIC/TLS is not available or when an additional encryption layer is desired.
 
 The CRISP code shares the same HKDF, ECDH, and key derivation infrastructure used by the file encryption pipeline, demonstrating the versatility of the core library.
+
+---
 
 ## Transport Layer
 
@@ -224,6 +260,8 @@ WebTransport (W3C spec, supported in Chrome 97+, Firefox 114+) will enable brows
 3. The HTTP API layer can be removed entirely
 4. Single port deployment (4433 only)
 
+---
+
 ## File Upload / Download Pipeline
 
 ### Upload
@@ -256,6 +294,8 @@ WebTransport (W3C spec, supported in Chrome 97+, Firefox 114+) will enable brows
 4. Concatenate plaintext chunks -> original file
 ```
 
+---
+
 ## Content-Addressable Storage and Merkle Sync
 
 Blobs are stored by their **SHA-256 hash** (of the ciphertext). This provides:
@@ -276,6 +316,8 @@ The sync algorithm is simple:
 ```
 
 This avoids downloading or re-uploading anything that already exists on both sides.
+
+---
 
 ## AWS Cost Analysis
 
@@ -319,6 +361,8 @@ QUIC multiplexing means a single server handles thousands of concurrent connecti
 
 At scale, cost is dominated by storage and data transfer. Compute is negligible because the server does no encryption.
 
+---
+
 ## Performance
 
 Measured on localhost with the QUIC transport:
@@ -329,6 +373,8 @@ Measured on localhost with the QUIC transport:
 | Download (recv + decrypt + reassemble) | 309 MB | ~4 sec | ~75 MB/s |
 | Chunk encryption | 1 MB | <1 ms | >1 GB/s |
 | PBKDF2 key derivation | -- | ~200 ms | -- |
+
+---
 
 ## Getting Started
 
@@ -396,42 +442,51 @@ Password: password
 Server:   127.0.0.1:4433
 ```
 
+---
+
 ## Project Structure
 
 ```
-rustbox-poc-01-v2/
-    rustbox               <-- CLI binary (copied here on build)
-    rustbox-core/          Shared crypto, chunking, Merkle, manifest, traits
+rust-box/
+    rustbox-core/              Shared cryptographic core (88 tests)
         src/
-            crypto/        PBKDF2, HKDF, XChaCha20-Poly1305, key hierarchy
-            chunking/      1 MB splitter, encrypt/decrypt pipeline
-            merkle/        SHA-256 Merkle tree with inclusion proofs
-            manifest/      FileManifest + ChunkEntry (bincode serialization)
-            sync/          Diff engine (compare local vs remote Merkle roots)
-            crisp/         CRISP protocol (ECDH handshake, AES-GCM records, PSK)
-            traits/        Transport, Storage, Clock, SecureRandom (WASM-safe)
-    rustbox-server/        Axum HTTP + Quinn QUIC, PostgreSQL via sqlx
+            crypto/            PBKDF2, HKDF, XChaCha20-Poly1305, key hierarchy
+            chunking/          1 MB splitter, encrypt/decrypt pipeline
+            merkle/            SHA-256 Merkle tree with inclusion proofs
+            manifest/          FileManifest + ChunkEntry (bincode serialization)
+            sync/              Diff engine (compare Merkle roots)
+            crisp/             CRISP protocol (ECDH, AES-GCM, PSK)
+            traits/            Transport, Storage, Clock, SecureRandom
+    rustbox-server/            Axum HTTP + Quinn QUIC server
         src/
-            api/           REST endpoints (auth, blobs, manifests, db)
-            quic/          Binary protocol handler (11 commands)
-            db/            SQL queries (users, blobs, manifests)
-    rustbox-cli/           Terminal client (clap, QUIC transport, SQLite)
-    rustbox-wasm/          WebAssembly build (wasm-bindgen, fetch transport, IndexedDB)
-    rustbox-ui/            Shared HTML/CSS/JS frontend
+            api/               REST endpoints
+            quic/              Binary protocol handler (11 commands)
+            db/                PostgreSQL queries
+    rustbox-cli/               Terminal client (clap, QUIC, SQLite)
+    rustbox-wasm/              WebAssembly client (wasm-bindgen, fetch, IndexedDB)
+    rustbox-ui/                Shared HTML/CSS/JS frontend
         js/
-            adapter.js     WASM backend adapter
-            app.js         Application state machine
-            auth.js        Login flow
-            file-manager.js Upload, download, delete UI
-            auto-sync.js   4-second manifest polling
-            database.js    Server storage inspector
-    test/                  Scripts
-        start-dev.sh       Launch all services (PostgreSQL + Server + Web UI)
-        stop-dev.sh        Stop all services
-        test-cli.sh        CLI integration tests (single-user, multi-user, files)
-    migrations/            PostgreSQL schema
-    docker-compose.yml     PostgreSQL 16 container
+            adapter.js         WASM backend adapter
+            app.js             Application state machine
+            auth.js            Login flow + session persistence
+            file-manager.js    Upload, download, delete UI
+            auto-sync.js       4-second manifest polling
+            database.js        Server storage inspector
+    docs/                      Technical documentation
+        architecture.md        Crate layout, traits, data flow
+        cryptography.md        Key hierarchy, ciphers, HKDF labels
+        crisp-protocol.md      Handshake, PSK, record format
+        sync-engine.md         Merkle trees, chunking, manifests
+        transport.md           QUIC protocol, HTTP API, dispatch
+    test/
+        start-dev.sh           Launch all services
+        stop-dev.sh            Stop all services
+        test-cli.sh            Integration tests
+    migrations/                PostgreSQL schema
+    docker-compose.yml         PostgreSQL 16 container
 ```
+
+---
 
 ## What This Proves
 
@@ -449,4 +504,4 @@ rustbox-poc-01-v2/
 
 ---
 
-This is a proof of concept, not production software. It lacks features like file versioning, sharing, folder sync, conflict resolution, rate limiting, and proper certificate management. But the cryptographic foundation is sound, the cross-client architecture works, and the performance is more than adequate for a real product.
+<sub>This is a proof of concept, not production software. It lacks features like file versioning, sharing, folder sync, conflict resolution, rate limiting, and proper certificate management. But the cryptographic foundation is sound, the cross-client architecture works, and the performance is more than adequate for a real product.</sub>
