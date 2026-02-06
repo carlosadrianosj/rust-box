@@ -30,25 +30,139 @@ The goal was to prove that zero-knowledge encryption is practical for real file 
 
 ---
 
-## The Core Challenge
+## One Core: The Trait Architecture
 
-The primary engineering challenge was not encryption itself. Established algorithms exist. The real challenge was building **one Rust cryptographic library** (`rustbox-core`) that compiles cleanly to two fundamentally different targets:
+The primary engineering challenge was not encryption itself. Established algorithms exist. The real challenge was: **how do you write one Rust library that compiles to native x86/ARM and to WebAssembly, when the two targets disagree on everything?**
 
-| Target | Runtime | Async | Random | Storage | Transport |
-|--------|---------|-------|--------|---------|-----------|
-| **CLI** (native) | Tokio | `Send + Sync` | OS CSPRNG | SQLite + filesystem | QUIC (quinn) |
-| **WASM** (browser) | Single-threaded JS event loop | `!Send` | `crypto.getRandomValues()` | IndexedDB | HTTP `fetch()` |
+| | Native (CLI) | Browser (WASM) |
+|---|---|---|
+| **Async runtime** | Tokio, multi-threaded | Single-threaded JS event loop |
+| **Thread safety** | `Send + Sync` required | `!Send` (no threads exist) |
+| **Random bytes** | OS CSPRNG (`getrandom`) | `crypto.getRandomValues()` |
+| **Storage** | SQLite + filesystem | IndexedDB |
+| **Network** | QUIC over UDP | HTTP `fetch()` |
+| **Clock** | `std::time::SystemTime` | `js_sys::Date::now()` |
 
-Each target has different async runtimes, different random number generators, different storage backends, and different network transports. The solution: **trait-based abstraction**.
+The answer is **traits**. `rustbox-core` defines five traits that abstract every platform-dependent operation. The core never calls the OS, never opens a socket, never touches a filesystem. It only calls trait methods. Each client crate plugs in its own implementations.
 
-`rustbox-core` defines traits (`Transport`, `ContentAddressableStorage`, `PersistentStorage`, `SecureRandom`, `Clock`) using `#[async_trait(?Send)]` -- which removes the `Send + Sync` requirement and allows the same trait to work in both native Tokio and browser WASM contexts. Each client crate provides its own implementations:
+### The Five Traits
 
-- **CLI:** `QuicTransport`, `SqliteMeta`, filesystem blobs
-- **WASM:** `FetchTransport`, `IndexedDbStorage`, browser `crypto`
+```rust
+// rustbox-core/src/traits/transport.rs
+#[async_trait(?Send)]
+pub trait Transport {
+    async fn upload_chunk(&self, hash: &[u8; 32], data: &[u8]) -> Result<(), RustBoxError>;
+    async fn download_chunk(&self, hash: &[u8; 32]) -> Result<Vec<u8>, RustBoxError>;
+    async fn upload_manifest(&self, data: &[u8]) -> Result<String, RustBoxError>;
+    async fn download_manifest(&self, id: &str) -> Result<Vec<u8>, RustBoxError>;
+    async fn get_merkle_root(&self) -> Result<[u8; 32], RustBoxError>;
+    async fn get_merkle_diff(&self, local_root: &[u8; 32]) -> Result<Vec<[u8; 32]>, RustBoxError>;
+}
 
-The cryptographic core (PBKDF2, HKDF, XChaCha20-Poly1305, Merkle trees, chunking pipeline) is identical across both. Same algorithm, same key derivation, same byte-level output. A file uploaded from the CLI can be downloaded and decrypted from the browser with zero compatibility issues.
+// rustbox-core/src/traits/storage.rs
+#[async_trait(?Send)]
+pub trait ContentAddressableStorage {
+    async fn store(&self, hash: &[u8; 32], data: &[u8]) -> Result<(), RustBoxError>;
+    async fn get(&self, hash: &[u8; 32]) -> Result<Vec<u8>, RustBoxError>;
+    async fn exists(&self, hash: &[u8; 32]) -> Result<bool, RustBoxError>;
+    async fn list_hashes(&self) -> Result<Vec<[u8; 32]>, RustBoxError>;
+    async fn delete(&self, hash: &[u8; 32]) -> Result<(), RustBoxError>;
+}
 
-This proves: **a single Rust crate can target CLI and WebAssembly simultaneously** while maintaining cryptographic correctness across all platforms.
+#[async_trait(?Send)]
+pub trait PersistentStorage {
+    async fn set(&self, key: &str, value: &[u8]) -> Result<(), RustBoxError>;
+    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, RustBoxError>;
+    async fn delete(&self, key: &str) -> Result<(), RustBoxError>;
+    async fn list_keys(&self, prefix: &str) -> Result<Vec<String>, RustBoxError>;
+}
+
+// rustbox-core/src/traits/random.rs
+pub trait SecureRandom {
+    fn fill_bytes(&self, dest: &mut [u8]) -> Result<(), RustBoxError>;
+    fn random_bytes(&self, len: usize) -> Result<Vec<u8>, RustBoxError>;
+}
+
+// rustbox-core/src/traits/clock.rs
+pub trait Clock {
+    fn now_secs(&self) -> Result<u64, RustBoxError>;
+    fn now_millis(&self) -> Result<u64, RustBoxError>;
+}
+```
+
+The critical detail is `#[async_trait(?Send)]`. Standard Rust async traits require futures to be `Send` (transferable across threads). WASM has no threads, so its futures are `!Send`. The `?Send` bound removes that requirement, allowing the same trait definition to compile under both Tokio (multi-threaded) and the browser's single-threaded event loop.
+
+### How the CLI Implements Them
+
+The CLI (`rustbox-cli`) runs on Tokio with full OS access. Its implementations use native system calls:
+
+```rust
+// rustbox-cli/src/platform/native_random.rs
+impl SecureRandom for NativeRandom {
+    fn fill_bytes(&self, dest: &mut [u8]) -> Result<(), RustBoxError> {
+        getrandom::getrandom(dest)                 // OS CSPRNG (urandom / CryptGenRandom)
+            .map_err(|e| RustBoxError::Platform(format!("getrandom failed: {e}")))
+    }
+}
+
+// rustbox-cli/src/platform/native_clock.rs
+impl Clock for NativeClock {
+    fn now_secs(&self) -> Result<u64, RustBoxError> {
+        SystemTime::now()                           // std::time::SystemTime
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .map_err(|e| RustBoxError::Platform(format!("SystemTime error: {e}")))
+    }
+}
+```
+
+For transport, the CLI opens QUIC streams over UDP using `quinn`. For storage, it writes blobs as files to disk (named by hex hash) and metadata to SQLite.
+
+| Trait | CLI Implementation | Backing System |
+|---|---|---|
+| `Transport` | `QuicTransport` | Quinn QUIC, UDP :4433 |
+| `ContentAddressableStorage` | `LocalFsStorage` | Filesystem, one file per blob |
+| `PersistentStorage` | `SqliteMeta` | SQLite database |
+| `SecureRandom` | `NativeRandom` | `getrandom` (OS CSPRNG) |
+| `Clock` | `NativeClock` | `std::time::SystemTime` |
+
+### How WASM Implements Them
+
+The WASM client (`rustbox-wasm`) runs inside a browser. There is no filesystem, no UDP, no system clock. Every implementation delegates to a browser API:
+
+```rust
+// rustbox-wasm/src/platform/wasm_random.rs
+impl SecureRandom for WasmRandom {
+    fn fill_bytes(&self, dest: &mut [u8]) -> Result<(), RustBoxError> {
+        getrandom::getrandom(dest)                 // delegates to crypto.getRandomValues()
+            .map_err(|e| RustBoxError::Platform(format!("getrandom failed: {}", e)))
+    }
+}
+
+// rustbox-wasm/src/platform/wasm_clock.rs
+impl Clock for WasmClock {
+    fn now_secs(&self) -> Result<u64, RustBoxError> {
+        let ms = js_sys::Date::now();              // JavaScript Date.now()
+        Ok((ms / 1000.0) as u64)
+    }
+}
+```
+
+For transport, the WASM client uses the browser Fetch API over HTTP. For storage, it uses IndexedDB (two object stores: `"blobs"` for chunks, `"metadata"` for key-value pairs).
+
+| Trait | WASM Implementation | Backing System |
+|---|---|---|
+| `Transport` | `FetchTransport` | Browser `fetch()`, HTTP :8443 |
+| `ContentAddressableStorage` | `IndexedDbStorage` | IndexedDB `"blobs"` store |
+| `PersistentStorage` | `IndexedDbStorage` | IndexedDB `"metadata"` store |
+| `SecureRandom` | `WasmRandom` | `crypto.getRandomValues()` |
+| `Clock` | `WasmClock` | `js_sys::Date::now()` |
+
+### What the Core Never Touches
+
+`rustbox-core` has **zero platform imports**. It never calls `std::fs`, `std::net`, `std::time`, `tokio`, `js_sys`, or `web_sys`. Every byte of randomness comes through `SecureRandom`. Every network call goes through `Transport`. Every timestamp comes from `Clock`. This is why the same 3,000 lines of crypto code compile identically to x86, ARM, and `wasm32-unknown-unknown`.
+
+The cryptographic pipeline (PBKDF2, HKDF, XChaCha20-Poly1305, Merkle trees, chunking) is pure computation. Same inputs produce the same outputs on every platform. A file uploaded from the CLI can be downloaded and decrypted from the browser with zero compatibility issues, because both clients share the exact same core library and differ only in their trait implementations.
 
 ---
 

@@ -28,9 +28,15 @@ imports encryption functions, only stores and retrieves opaque blobs.
 
 ## Trait Abstraction
 
-The core crate defines four async traits that decouple business logic from
-platform specifics. Every trait uses `#[async_trait(?Send)]` so it compiles
-under both Tokio (native, multi-threaded) and single-threaded WASM runtimes.
+The fundamental problem RustBox solves at the architecture level is: how do you
+write one Rust library that compiles to native (x86/ARM) and to WebAssembly,
+when the two targets disagree on async runtimes, thread safety, random number
+generation, storage, networking, and time?
+
+The answer is five traits. `rustbox-core` defines them; each client implements
+them. The core never calls the OS directly.
+
+### The Five Traits
 
 ```
 +---------------------+   +-----------------------------+
@@ -59,15 +65,97 @@ under both Tokio (native, multi-threaded) and single-threaded WASM runtimes.
 +---------------------+
 ```
 
-### Implementations by Client
+### The `?Send` Constraint
 
-| Trait                      | CLI                  | WASM                  |
-|----------------------------|----------------------|-----------------------|
-| Transport                  | QUIC (quinn)         | HTTP fetch()          |
-| ContentAddressableStorage  | Filesystem blobs     | IndexedDB             |
-| PersistentStorage          | SQLite               | IndexedDB             |
-| SecureRandom               | OsRng                | crypto.getRandomValues|
-| Clock                      | SystemTime           | Date.now()            |
+All async traits use `#[async_trait(?Send)]`. This is the key design decision.
+
+Standard Rust async traits require futures to be `Send` (transferable between
+threads). The Tokio runtime on native uses multiple threads and requires `Send`.
+But WASM runs on a single thread inside the browser's event loop. Its futures
+are `!Send` because threads do not exist in that context.
+
+The `?Send` bound removes the `Send` requirement from the trait definition.
+This means:
+
+- On native, Tokio can still use `Send` futures internally because the
+  implementations happen to be `Send`.
+- On WASM, the single-threaded executor works because `Send` is not required.
+
+Both sides compile against the same trait. The core does not need conditional
+compilation, `#[cfg]` attributes, or any platform-specific code.
+
+### CLI Implementations (rustbox-cli)
+
+The CLI runs on Tokio with full OS access:
+
+```rust
+// native_random.rs
+impl SecureRandom for NativeRandom {
+    fn fill_bytes(&self, dest: &mut [u8]) -> Result<(), RustBoxError> {
+        getrandom::getrandom(dest)          // OS CSPRNG
+            .map_err(|e| RustBoxError::Platform(format!("getrandom failed: {e}")))
+    }
+}
+
+// native_clock.rs
+impl Clock for NativeClock {
+    fn now_secs(&self) -> Result<u64, RustBoxError> {
+        SystemTime::now()                   // std::time::SystemTime
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .map_err(|e| RustBoxError::Platform(format!("SystemTime error: {e}")))
+    }
+}
+```
+
+| Trait                      | CLI Struct       | Backing System               |
+|----------------------------|------------------|------------------------------|
+| Transport                  | QuicTransport    | Quinn QUIC, UDP :4433        |
+| ContentAddressableStorage  | LocalFsStorage   | Filesystem, one file per blob|
+| PersistentStorage          | SqliteMeta       | SQLite database              |
+| SecureRandom               | NativeRandom     | getrandom (OS CSPRNG)        |
+| Clock                      | NativeClock      | std::time::SystemTime        |
+
+### WASM Implementations (rustbox-wasm)
+
+The WASM client runs inside a browser. There is no filesystem, no UDP, no
+system clock. Every implementation delegates to a browser API:
+
+```rust
+// wasm_random.rs
+impl SecureRandom for WasmRandom {
+    fn fill_bytes(&self, dest: &mut [u8]) -> Result<(), RustBoxError> {
+        getrandom::getrandom(dest)          // crypto.getRandomValues() via "js" feature
+            .map_err(|e| RustBoxError::Platform(format!("getrandom failed: {}", e)))
+    }
+}
+
+// wasm_clock.rs
+impl Clock for WasmClock {
+    fn now_secs(&self) -> Result<u64, RustBoxError> {
+        let ms = js_sys::Date::now();       // JavaScript Date.now()
+        Ok((ms / 1000.0) as u64)
+    }
+}
+```
+
+| Trait                      | WASM Struct       | Backing System               |
+|----------------------------|-------------------|------------------------------|
+| Transport                  | FetchTransport    | Browser fetch(), HTTP :8443  |
+| ContentAddressableStorage  | IndexedDbStorage  | IndexedDB "blobs" store      |
+| PersistentStorage          | IndexedDbStorage  | IndexedDB "metadata" store   |
+| SecureRandom               | WasmRandom        | crypto.getRandomValues()     |
+| Clock                      | WasmClock         | js_sys::Date::now()          |
+
+### What the Core Never Touches
+
+`rustbox-core` has zero platform imports. It never calls `std::fs`, `std::net`,
+`std::time`, `tokio`, `js_sys`, or `web_sys`. Every byte of randomness comes
+through `SecureRandom`. Every network call goes through `Transport`. Every
+timestamp comes from `Clock`.
+
+This is why the same 3,000 lines of code compile identically to x86, ARM, and
+`wasm32-unknown-unknown` with no conditional compilation.
 
 ## Server Architecture
 
