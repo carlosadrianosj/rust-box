@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="rust_box_v4.png" alt="RustBox" width="280" />
+  <img src="assets/rust_box_v4.png" alt="RustBox" width="280" />
 </p>
 
 <h1 align="center">RustBox</h1>
